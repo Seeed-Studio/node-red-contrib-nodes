@@ -2,42 +2,47 @@
     <div class="form-row">
         <label for="node-input-name">
             <i class="fa fa-tag"></i>
-            Name
+            <span>Name</span>
         </label>
         <input type="text" id="node-input-name" />
     </div>
     <div class="form-row">
         <label style="width: 100%;">
             <i class="fa fa-compass"></i>
-            Motor
+            <span>Get motor angle</span>
         </label>
     </div>
 
     <div class="form-row">
-        <div style="display: flex; align-items: center; margin: 5px 0;">
-            <input style="width: auto; margin: 0 10px;" type="radio" name="node-input-output" value="0" />
-            <span>Yaw Axis (Left and Right)</span>
+        <div style="margin-left: 10px;">
+            <div style="display: flex; margin-bottom: 5px;">
+                <input style="width: auto; margin: 0 10px;" type="radio" name="node-input-output" value="0" />
+                <span>Yaw Axis (Left and Right)</span>
+            </div>
+            <div style="display: flex;">
+                <input style="width: auto; margin: 0 10px;" type="radio" name="node-input-output" value="1" />
+                <span>Pitch Axis (Up and Down)</span>
+            </div>
         </div>
     </div>
 
     <div class="form-row">
-        <div style="display: flex; align-items: center; margin: 5px 0;">
-            <input style="width: auto; margin: 0 10px;" type="radio" name="node-input-output" value="1" />
-            <span>Pitch Axis (Up and Down)</span>
-        </div>
-    </div>
-
-    <div class="form-row">
-        <label style="width: 100%;">
-            <i class="fa fa-cog"></i>
-            Output Format
+        <label for="node-input-unit">
+            <i class="fa fa-pencil"></i>
+            <span>Unit</span>
         </label>
     </div>
 
     <div class="form-row">
-        <div style="display: flex; align-items: center; margin: 5px 0;">
-            <input style="width: auto; margin: 0 10px;" type="checkbox" id="node-input-outputInDegrees" />
-            <span>Output in Degrees</span>
+        <div style="margin-left: 10px;">
+            <div style="display: flex; margin-bottom: 5px;">
+                <input style="width: auto; margin: 0 10px;" type="radio" name="node-input-unit" id="node-input-unit-decimal" value="0" />
+                <span>Output in decimal (e.g 180.23 as 180.23 degrees)</span>
+            </div>
+            <div style="display: flex;">
+                <input style="width: auto; margin: 0 10px;" type="radio" name="node-input-unit" id="node-input-unit-integer" value="1" />
+                <span>Output in integer (e.g 18023 as 180.23 degrees)</span>
+            </div>
         </div>
     </div>
 </script>
@@ -49,7 +54,7 @@
         defaults: {
             name: { value: "" },
             output: { required: true, value: "0" },
-            outputInDegrees: { value: false },
+            unit: { value: "0" },
         },
         inputs: 1,
         outputs: 1,
@@ -61,11 +66,11 @@
         oneditprepare: function () {
             const node = this;
             $(`input[name="node-input-output"][value="${node.output}"]`).prop("checked", true);
-            $("#node-input-outputInDegrees").prop("checked", node.outputInDegrees);
+            $(`input[name="node-input-unit"][value="${node.unit || "0"}"]`).prop("checked", true);
         },
         oneditsave: function () {
             this.output = $('input[name="node-input-output"]:checked').val();
-            this.outputInDegrees = $("#node-input-outputInDegrees").is(":checked");
+            this.unit = $('input[name="node-input-unit"]:checked').val();
         },
     });
 </script>
@@ -88,24 +93,24 @@ Any input message will trigger the node to read the current motor angle. The con
 -   **Yaw Axis (Left and Right)**: Retrieves the angle of the horizontal movement motor
 -   **Pitch Axis (Up and Down)**: Retrieves the angle of the vertical movement motor
 
-## Output Format
+## Unit
 
--   **Raw Value (default)**: Outputs the raw angle value from the motor (in motor units)
--   **Output in Degrees**: When checked, divides the raw value by 100 to convert to degrees
+-   **Output in decimal**: Outputs the angle value in decimal degrees (e.g., 180.23°)
+-   **Output in integer**: Outputs the angle value in integer format representing hundredths of degrees (e.g., 18023 = 180.23°)
 
 ## Output
 
 The node outputs the current angle value in the `msg.payload` property:
 
 ```json
-// With "Convert to Degrees" unchecked (raw value)
-{
-    "payload": 9050
-}
-
-// With "Convert to Degrees" checked
+// With "Output in decimal" selected
 {
     "payload": 90.5
+}
+
+// With "Output in integer" selected
+{
+    "payload": 9050
 }
 ```
 

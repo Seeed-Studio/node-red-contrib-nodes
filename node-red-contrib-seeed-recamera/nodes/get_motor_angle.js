@@ -33,19 +33,21 @@ module.exports = function (RED) {
                     throw new Error("Failed to read motor angle");
                 }
 
-                // Convert to degrees if configured to do so
-                const outputInDegrees = config.outputInDegrees || false;
-
-                // Format display value (always show in degrees for status)
+                // Format based on unit setting
+                const unit = config.unit || "0";
+                const useDecimal = unit === "0";
+                
+                // Calculate display angle (always in decimal for status)
                 const displayAngle = Number((rawAngle / 100).toFixed(2));
-
-                const outputAngle = outputInDegrees ? displayAngle : rawAngle;
+                
+                // Determine output value based on unit setting
+                const outputAngle = useDecimal ? displayAngle : rawAngle;
 
                 // Update status with current angle
                 node.status({
                     fill: "green",
                     shape: "dot",
-                    text: `${isYawMotor ? "Yaw" : "Pitch"}: ${outputInDegrees ? displayAngle + "°" : rawAngle + " (raw)"}`,
+                    text: `${isYawMotor ? "Yaw" : "Pitch"}: ${displayAngle}°`,
                 });
 
                 // Send the angle to the output

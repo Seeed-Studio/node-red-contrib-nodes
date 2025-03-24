@@ -2,28 +2,27 @@
     <div class="form-row">
         <label for="node-input-name">
             <i class="fa fa-tag"></i>
-            Name
+            <span>Name</span>
         </label>
         <input type="text" id="node-input-name" />
     </div>
     <div class="form-row">
         <label style="width: 100%;">
             <i class="fa fa-cog"></i>
-            Motor
+            <span>Get motor speed</span>
         </label>
     </div>
 
     <div class="form-row">
-        <div style="display: flex; align-items: center; margin: 5px 0;">
-            <input style="width: auto; margin: 0 10px;" type="radio" name="node-input-output" value="0" />
-            <span>Yaw Axis (Left and Right)</span>
-        </div>
-    </div>
-
-    <div class="form-row">
-        <div style="display: flex; align-items: center; margin: 5px 0;">
-            <input style="width: auto; margin: 0 10px;" type="radio" name="node-input-output" value="1" />
-            <span>Pitch Axis (Up and Down)</span>
+        <div style="margin-left: 10px;">
+            <div style="display: flex; margin-bottom: 5px;">
+                <input style="width: auto; margin: 0 10px;" type="radio" name="node-input-output" value="0" />
+                <span>Yaw Axis (Left and Right)</span>
+            </div>
+            <div style="display: flex;">
+                <input style="width: auto; margin: 0 10px;" type="radio" name="node-input-output" value="1" />
+                <span>Pitch Axis (Up and Down)</span>
+            </div>
         </div>
     </div>
 </script>

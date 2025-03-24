@@ -51,11 +51,14 @@ module.exports = function (RED) {
                 // Get current speed from global context or use default
                 const speedHex = globalContext.get(isYawMotor ? CURRENT_YAW_SPEED_KEY : CURRENT_PITCH_SPEED_KEY) ?? DEFAULT_SPEED;
 
-                // Convert input value to motor angle units if needed
+                // Process input value based on unit setting
                 let angleValue = numInputValue;
-                const inputInDegrees = config.inputInDegrees || false;
-                if (inputInDegrees) {
-                    angleValue = angleValue * 100; // Convert degrees to motor units
+                const unit = config.unit || "0";
+                const useDecimal = unit === "0";
+                
+                // Convert decimal to motor units if decimal input
+                if (useDecimal) {
+                    angleValue = angleValue * 100; // Convert decimal degrees to motor units
                 }
 
                 let outputCommand;

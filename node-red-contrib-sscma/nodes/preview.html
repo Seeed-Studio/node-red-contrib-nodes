@@ -64,6 +64,12 @@
     }
 
     (function () {
+        // 全局变量，用于跟踪节点实例数量
+        let previewInstances = 0;
+        let aliveInterval = null;
+        let isSubscribed = false;
+        const latestImages = {};
+
         RED.nodes.registerType("preview", {
             category: "Vision AI",
             color: "#77C2A4",
@@ -111,11 +117,10 @@
                     typeField: $("#node-input-dataType"),
                     types: ["msg"],
                 });
-            },
+            }
         });
 
-        const latestImages = {};
-
+        // 全局函数
         const remove = function (nodeid) {
             const $img = document.getElementById("image-output-img-" + nodeid);
             const $group = document.getElementById("image-output-group-" + nodeid);
@@ -643,7 +648,7 @@
             }
         };
 
-        var updateNodeState = function (node, newState) {
+        const updateNodeState = function (node, newState) {
             const historyEvent = {
                 t: "edit",
                 node: node,
@@ -660,13 +665,13 @@
             RED.view.redraw();
         };
 
-        var notifyResult = function (status, resp, label) {
+        const notifyResult = function (status, resp, label) {
             if (status == 200) {
                 RED.notify(`Successfully ${resp}: ${label}`, "success");
             }
         };
 
-        var handleAjaxError = function (jqXHR, textStatus, errorThrown) {
+        const handleAjaxError = function (jqXHR, textStatus, errorThrown) {
             let message;
             switch (jqXHR.status) {
                 case 404:
@@ -681,38 +686,92 @@
             RED.notify(`<strong>Error</strong>: ${message}`, "error");
         };
 
-        function subscribe() {
-            $.ajax({
-                url: `image-output/0/alive`,
-                type: "POST",
-            });
-            RED.comms.subscribe("preview", function (event, data) {
-                if (data.hasOwnProperty("data")) {
-                    latestImages[data.id] = data.data;
-                    render(data.id, data.data, RED.nodes.node(data.id));
-                } else {
-                    remove(data.id);
+        // 开始预览服务
+        function startPreviewServices() {
+            if (!isSubscribed) {
+                // 订阅通信频道
+                RED.comms.subscribe("preview", function (event, data) {
+                    if (data.hasOwnProperty("data")) {
+                        latestImages[data.id] = data.data;
+                        render(data.id, data.data, RED.nodes.node(data.id));
+                    } else {
+                        remove(data.id);
+                    }
+                });
+                isSubscribed = true;
+                
+                // 发送初始alive消息
+                $.ajax({
+                    url: `image-output/0/alive`,
+                    type: "POST",
+                });
+                
+                // 设置定期发送alive消息的定时器
+                aliveInterval = setInterval(() => {
+                    $.ajax({
+                        url: `image-output/0/alive`,
+                        type: "POST",
+                        timeout: 500,
+                    });
+                }, 3000);
+            }
+        }
+        
+        // 停止预览服务
+        function stopPreviewServices() {
+            if (isSubscribed) {
+                // 取消订阅
+                RED.comms.unsubscribe("preview");
+                isSubscribed = false;
+                
+                // 清除定时器
+                if (aliveInterval) {
+                    clearInterval(aliveInterval);
+                    aliveInterval = null;
                 }
-            });
+            }
         }
-        subscribe();
 
-        setInterval(() => {
-            $.ajax({
-                url: `image-output/0/alive`,
-                type: "POST",
-                timeout: 500,
-            });
-        }, 3000);
+        // 监听编辑器事件，用于检测节点的添加和移除
+        RED.events.on("nodes:add", function (node) {
+            if (node.type === "preview") {
+                // 单例检查
+                const existingNodes = RED.nodes.filterNodes({ type: "preview" });
+                if (existingNodes.length > 1) {
+                    RED.notify("This node can only be instantiated once.", "error");
+                    RED.nodes.remove(node.id);
+                }
+            }
+        });
+    
+        // 监听节点部署事件
+        RED.events.on("deploy", function() {
+            // 部署后检查是否有已部署的preview节点
+            setTimeout(function() {
+                checkDeployedNodes();
+            }, 500); // 延迟一点时间确保部署完成
+        });
+        
+        function checkDeployedNodes() {
+            // 获取所有已部署的preview节点
+            const deployedPreviewNodes = RED.nodes.filterNodes({ type: "preview" }).filter(n => !n.d);
+            
+            if (deployedPreviewNodes.length > 0 && !isSubscribed) {
+                // 有已部署的preview节点，启动服务
+                startPreviewServices();
+            } else if (deployedPreviewNodes.length === 0 && isSubscribed) {
+                // 没有已部署的preview节点，但服务正在运行，停止服务
+                stopPreviewServices();
+            }
+        }
+        
+        // 在编辑器加载完成后检查是否已存在*已部署的* preview节点
+        $(document).ready(function() {
+            setTimeout(function() {
+                checkDeployedNodes();
+            }, 1000); // 给页面加载一些时间
+        });
     })();
-
-    RED.events.on("nodes:add", function (node) {
-        const existingNodes = RED.nodes.filterNodes({ type: "preview" });
-        if (existingNodes.length > 1) {
-            RED.notify("This node can only be instantiated once.", "error");
-            RED.nodes.remove(node.id);
-        }
-    });
 </script>
 
 <script type="text/html" data-template-name="preview">

@@ -1,85 +1,79 @@
 <script type="text/html" data-template-name="set-motor-angle">
-    <!-- 添加一个包装容器，带有滚动条功能 -->
     <div style="height: 100%; overflow-y: auto;">
         <div class="form-row">
             <label for="node-input-name">
                 <i class="fa fa-tag"></i>
-                Name
+                <span>Name</span>
             </label>
             <input type="text" id="node-input-name" />
         </div>
         <div class="form-row">
             <label for="node-input-name">
                 <i class="fa fa-arrow-circle-right"></i>
-                Input
+                <span>Input</span>
             </label>
             <input type="text" id="node-input-input" />
             <input type="hidden" id="node-input-input-type" />
         </div>
 
-        <!-- Set motor angle section -->
         <div class="form-row">
             <label style="width: 100%;">
                 <i class="fa fa-gear"></i>
-                Set motor angle
+                <span>Set motor angle</span>
             </label>
         </div>
 
-        <!-- Yaw Axis section -->
         <div class="form-row" style="margin-left: 20px; margin-bottom: 0;">
             <label style="width: 100%;"><b>Yaw Axis (Left and Right):</b></label>
         </div>
-        <div class="form-row" style="margin-bottom: 20px;">
+        <div class="form-row">
             <div style="margin-left: 10px;">
-                <div style="display: flex; align-items: center; margin: 5px 0;">
+                <div style="display: flex; margin-bottom: 5px">
                     <input style="width: auto; margin: 0 10px;" type="radio" name="node-input-output" value="0" />
                     <span>Absolute Position (deg)</span>
                 </div>
-                <div style="display: flex; align-items: center; margin: 5px 0;">
+                <div style="display: flex; margin-bottom: 5px">
                     <input style="width: auto; margin: 0 10px;" type="radio" name="node-input-output" value="1" />
                     <span>Relative Offset (deg)</span>
                 </div>
             </div>
         </div>
 
-        <!-- Pitch Axis section -->
         <div class="form-row" style="margin-left: 20px; margin-bottom: 0;">
             <label style="width: 100%;"><b>Pitch Axis (Up and Down):</b></label>
         </div>
-        <div class="form-row" style="margin-bottom: 20px;">
+        <div class="form-row">
             <div style="margin-left: 10px;">
-                <div style="display: flex; align-items: center; margin: 5px 0;">
+                <div style="display: flex; margin-bottom: 5px">
                     <input style="width: auto; margin: 0 10px;" type="radio" name="node-input-output" value="2" />
                     <span>Absolute Position (deg)</span>
                 </div>
-                <div style="display: flex; align-items: center; margin: 5px 0;">
+                <div style="display: flex; margin-bottom: 5px">
                     <input style="width: auto; margin: 0 10px;" type="radio" name="node-input-output" value="3" />
                     <span>Relative Offset (deg)</span>
                 </div>
             </div>
         </div>
 
-        <!-- Set dual axis section -->
         <div class="form-row">
             <label style="width: 100%;">
                 <i class="fa fa-gear"></i>
-                Set dual axis at the same time
+                <span>Set dual axis at the same time</span>
             </label>
         </div>
-        <div class="form-row" style="margin-bottom: 20px;">
+        <div class="form-row">
             <div style="margin-left: 10px;">
-                <div style="display: flex; align-items: center; margin: 5px 0;">
+                <div style="display: flex; margin-bottom: 5px">
                     <input style="width: auto; margin: 0 10px;" type="radio" name="node-input-output" value="4" />
                     <span>Absolute Position (deg)</span>
                 </div>
-                <div style="display: flex; align-items: center; margin: 5px 0;">
+                <div style="display: flex; margin-bottom: 5px">
                     <input style="width: auto; margin: 0 10px;" type="radio" name="node-input-output" value="5" />
                     <span>Relative Offset (deg)</span>
                 </div>
             </div>
         </div>
 
-        <!-- Dual axis input format info -->
         <div class="form-row dual-axis-info" style="margin-left: 20px; display: none;">
             <div style="background: #f3f3f3; padding: 10px; border-radius: 5px; font-size: 12px; max-width: 90%;">
                 <p>Please parse in json</p>
@@ -97,23 +91,22 @@
         <div class="form-row">
             <label for="node-input-unit">
                 <i class="fa fa-pencil"></i>
-                Unit
+                <span>Unit</span>
             </label>
         </div>
-        <div class="form-row" style="margin-bottom: 20px;">
+        <div class="form-row">
             <div style="margin-left: 10px;">
-                <div style="display: flex; align-items: center; margin: 5px 0;">
+                <div style="display: flex; margin-bottom: 5px">
                     <input style="width: auto; margin: 0 10px;" type="radio" name="node-input-unit" id="node-input-unit-decimal" value="0" />
                     <span>Input in decimal (e.g 180.23 as 180.23 degrees)</span>
                 </div>
-                <div style="display: flex; align-items: center; margin: 5px 0;">
+                <div style="display: flex; margin-bottom: 5px">
                     <input style="width: auto; margin: 0 10px;" type="radio" name="node-input-unit" id="node-input-unit-integer" value="1" />
                     <span>Input in integer (e.g 18023 as 180.23 degrees)</span>
                 </div>
             </div>
         </div>
     </div>
-    <!-- 滚动容器结束 -->
 </script>
 
 <script type="text/javascript">
@@ -142,11 +135,9 @@
                 typeField: "#node-input-input-type",
             });
 
-            // Set radio button values
             $(`input[name="node-input-output"][value="${node.output}"]`).prop("checked", true);
             $(`input[name="node-input-unit"][value="${node.unit || "0"}"]`).prop("checked", true);
 
-            // Toggle dual-axis info display based on selected mode
             $('input[name="node-input-output"]').change(function () {
                 const val = $(this).val();
                 if (val === "4" || val === "5") {
@@ -156,7 +147,6 @@
                 }
             });
 
-            // Trigger change event to set initial state
             $('input[name="node-input-output"]:checked').trigger("change");
         },
         oneditsave: function () {

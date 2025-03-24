@@ -2,15 +2,44 @@
     <div class="form-row">
         <label for="node-input-name">
             <i class="fa fa-tag"></i>
-            Name
+            <span>Name</span>
         </label>
         <input type="text" id="node-input-name" />
     </div>
+    <div class="form-row">
+        <label for="node-input-name">
+            <i class="fa fa-arrow-circle-right"></i>
+            <span>Input</span>
+        </label>
+        <input type="text" id="node-input-input" />
+        <input type="hidden" id="node-input-input-type" />
+    </div>
+
+    <div class="form-row">
+        <label style="width: 100%;">
+            <i class="fa fa-arrow-circle-left"></i>
+            <span>Output as <b>motor angle</b></span>
+        </label>
+    </div>
     
     <div class="form-row">
-        <div style="display: flex; align-items: center; margin: 5px 0;">
-            <input style="width: auto; margin: 0 10px;" type="checkbox" id="node-input-outInDegrees" />
-            <span>Output in Degrees</span>
+        <label for="node-input-unit">
+            <i class="fa fa-pencil"></i>
+            <span>Unit</span>
+        </label>
+    </div>
+    <div class="form-row">
+        <div style="margin-left: 10px;">
+            <div>
+                <div style="display: flex; margin-bottom: 5px;">
+                    <input style="width: auto; margin: 0 10px;" type="radio" name="node-input-unit" id="node-input-unit-decimal" value="0" />
+                    <span>Output in decimal (e.g 180.23 as 180.23 degrees)</span>
+                </div>
+                <div style="display: flex;">
+                    <input style="width: auto; margin: 0 10px;" type="radio" name="node-input-unit" id="node-input-unit-integer" value="1" />
+                    <span>Output in integer (e.g 18023 as 180.23 degrees)</span>
+                </div>
+            </div>
         </div>
     </div>
 </script>
@@ -21,7 +50,9 @@
         color: "#C6D09C",
         defaults: {
             name: { value: "" },
-            outInDegrees: { value: false }
+            input: { value: "payload", required: true },
+            "input-type": { value: "msg" },
+            unit: { value: "0" }
         },
         inputs: 1,
         outputs: 1,
@@ -32,10 +63,16 @@
         },
         oneditprepare: function () {
             const node = this;
-            $("#node-input-outInDegrees").prop("checked", node.outInDegrees);
+            $("#node-input-input").typedInput({
+                type: "msg",
+                types: ["msg", "flow", "global"],
+                typeField: "#node-input-input-type",
+            });
+            $(`input[name="node-input-unit"][value="${node.unit || "0"}"]`).prop("checked", true);
         },
         oneditsave: function () {
-            this.outInDegrees = $("#node-input-outInDegrees").is(":checked");
+            this.unit = $('input[name="node-input-unit"]:checked').val();
+            this.input = $("#node-input-input").typedInput("value");
         },
     });
 </script>
@@ -48,7 +85,10 @@ This node decodes CAN bus motor control commands into human-readable angle value
 ## Overview
 The node takes a CAN frame command string as input and extracts the motor ID, command type, and angle/offset value. It supports both absolute position commands (A6) and relative offset commands (A8).
 
-## Input
+## Input Configuration
+The Input field allows you to specify the message property, flow context, or global context variable that contains the CAN frame command string. By default, it uses `msg.payload`.
+
+## Input Format
 The input should be a CAN frame command string in the format:
 ```
 motorId#commandType.direction.speed.angleHex
@@ -58,14 +98,14 @@ Examples:
 - `141#A6.00.2C.01.10.27.00.00` (Yaw motor absolute position)
 - `142#A8.00.2C.01.F4.01.00.00` (Pitch motor relative offset)
 
-## Output Format
-- **Raw Value (default)**: Outputs the raw angle value from the motor (in motor units)
-- **Output in Degrees**: When checked, divides the raw value by 100 to convert to degrees
+## Unit
+- **Output in decimal**: Outputs angle values in decimal degrees (e.g., 180.23°)
+- **Output in integer**: Outputs angle values in integer format representing hundredths of degrees (e.g., 18023 = 180.23°)
 
 ## Output
 The node outputs a JSON object with the decoded information:
 
-For absolute position commands (A6) with "Output in Degrees" checked:
+For absolute position commands (A6) with "Output in decimal" selected:
 ```json
 {
     "payload": {
@@ -75,7 +115,7 @@ For absolute position commands (A6) with "Output in Degrees" checked:
 }
 ```
 
-For absolute position commands (A6) with raw values:
+For absolute position commands (A6) with "Output in integer" selected:
 ```json
 {
     "payload": {
@@ -85,7 +125,7 @@ For absolute position commands (A6) with raw values:
 }
 ```
 
-For relative offset commands (A8) with "Output in Degrees" checked:
+For relative offset commands (A8) with "Output in decimal" selected:
 ```json
 {
     "payload": {
@@ -95,7 +135,7 @@ For relative offset commands (A8) with "Output in Degrees" checked:
 }
 ```
 
-For relative offset commands (A8) with raw values:
+For relative offset commands (A8) with "Output in integer" selected:
 ```json
 {
     "payload": {
@@ -120,8 +160,8 @@ For relative offset commands (A8) with raw values:
 ## Notes
 - The node handles the byte order conversion (little-endian format)
 - Error messages are displayed if the input format is invalid
-- When "Output in Degrees" is checked, the values are more human-readable
-- When "Output in Degrees" is not checked, the values match the motor's internal units
+- When "Output in decimal" is selected, the values are more human-readable
+- When "Output in integer" is selected, the values match the motor's internal units
 
 ## Technical Notes
 - Motor units are in hundredths of degrees (0.01 degree/LSB)

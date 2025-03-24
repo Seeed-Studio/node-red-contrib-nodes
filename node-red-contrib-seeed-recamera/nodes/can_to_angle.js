@@ -4,11 +4,20 @@ module.exports = function (RED) {
     function CanToAngleNode(config) {
         RED.nodes.createNode(this, config);
         const node = this;
+        
+        // Save the input configuration
+        node.input = config.input || "payload";
+        node.inputType = config["input-type"] || "msg";
 
         node.on("input", function (msg) {
             try {
-                // Get input command string
-                const command = msg.payload;
+                // Get input command string from configured property using object mapping
+                const inputSources = {
+                    msg: () => RED.util.getMessageProperty(msg, node.input),
+                    flow: () => node.context().flow.get(node.input),
+                    global: () => node.context().global.get(node.input),
+                };
+                const command = inputSources[node.inputType]?.();
 
                 // Validate input
                 if (!command || typeof command !== "string") {
@@ -42,9 +51,12 @@ module.exports = function (RED) {
                 // Convert hex to decimal value
                 let angleValue = hexToAngle(angleHex);
 
-                // Convert to degrees if configured
-                const outInDegrees = config.outInDegrees || false;
-                if (outInDegrees) {
+                // Process output format based on unit setting
+                const unit = config.unit || "0";
+                const useDecimal = unit === "0";
+                
+                // Convert to decimal degrees if configured to do so
+                if (useDecimal) {
                     angleValue = Number((angleValue / 100).toFixed(2)); // Convert from motor units to degrees
                 }
 
@@ -60,7 +72,7 @@ module.exports = function (RED) {
                     node.status({
                         fill: "green",
                         shape: "dot",
-                        text: `Absolute: ${angleValue}${outInDegrees ? "°" : ""}`,
+                        text: `Absolute: ${angleValue}${useDecimal ? "°" : ""}`,
                     });
                 } else if (commandType === "A8") {
                     // Relative offset command
@@ -74,7 +86,7 @@ module.exports = function (RED) {
                     node.status({
                         fill: "green",
                         shape: "dot",
-                        text: `Offset: ${sign}${angleValue}${outInDegrees ? "°" : ""}`,
+                        text: `Offset: ${sign}${angleValue}${useDecimal ? "°" : ""}`,
                     });
                 } else {
                     throw new Error(`Unknown command type: ${commandType}`);

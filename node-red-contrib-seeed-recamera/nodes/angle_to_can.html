@@ -2,44 +2,39 @@
     <div class="form-row">
         <label for="node-input-name">
             <i class="fa fa-tag"></i>
-            Name
+            <span>Name</span>
         </label>
         <input type="text" id="node-input-name" />
     </div>
     <div class="form-row">
         <label for="node-input-name">
             <i class="fa fa-arrow-circle-right"></i>
-            Input
+            <span>Input</span>
         </label>
         <input type="text" id="node-input-input" />
         <input type="hidden" id="node-input-input-type" />
     </div>
     
     <div class="form-row">
-        <div style="display: flex; align-items: center; margin: 5px 0;">
-            <input style="width: auto; margin: 0 10px;" type="checkbox" id="node-input-inputInDegrees" />
-            <span>Input in Degrees</span>
-        </div>
-    </div>
-    
-    <div class="form-row">
         <label style="width: 100%;">
             <i class="fa fa-arrow-circle-left"></i>
-            Output as motor parameters
+            <span>Output as <b>CAN command</b></span>
         </label>
     </div>
     <div class="form-row" style="margin-left: 20px; margin-bottom: 0;">
         <label style="width: 100%;"><b>Yaw Axis (Left and Right):</b></label>
     </div>
-    <div class="form-row" style="margin-bottom: 20px;">
+    <div class="form-row">
         <div style="margin-left: 10px;">
-            <div style="display: flex; align-items: center; margin: 5px 0;">
-                <input style="width: auto; margin: 0 10px;" type="radio" name="node-input-output" value="0" />
-                <span>Absolute Position</span>
-            </div>
-            <div style="display: flex; align-items: center; margin: 5px 0;">
-                <input style="width: auto; margin: 0 10px;" type="radio" name="node-input-output" value="1" />
-                <span>Relative Offset</span>
+            <div>
+                <div style="display: flex; margin-bottom: 5px;">
+                    <input style="width: auto; margin: 0 10px;" type="radio" name="node-input-output" value="0" />
+                    <span>Absolute Position</span>
+                </div>
+                <div style="display: flex;">
+                    <input style="width: auto; margin: 0 10px;" type="radio" name="node-input-output" value="1" />
+                    <span>Relative Offset</span>
+                </div>
             </div>
         </div>
     </div>
@@ -48,13 +43,36 @@
     </div>
     <div class="form-row">
         <div style="margin-left: 10px;">
-            <div style="display: flex; align-items: center; margin: 5px 0;">
-                <input style="width: auto; margin: 0 10px;" type="radio" name="node-input-output" value="2" />
-                <span>Absolute Position</span>
+            <div>
+                <div style="display: flex; margin-bottom: 5px;">
+                    <input style="width: auto; margin: 0 10px;" type="radio" name="node-input-output" value="2" />
+                    <span>Absolute Position</span>
+                </div>
+                <div style="display: flex;">
+                    <input style="width: auto; margin: 0 10px;" type="radio" name="node-input-output" value="3" />
+                    <span>Relative Offset</span>
+                </div>
             </div>
-            <div style="display: flex; align-items: center; margin: 5px 0;">
-                <input style="width: auto; margin: 0 10px;" type="radio" name="node-input-output" value="3" />
-                <span>Relative Offset</span>
+        </div>
+    </div>
+    
+    <div class="form-row">
+        <label for="node-input-unit">
+            <i class="fa fa-pencil"></i>
+            <span>Unit</span>
+        </label>
+    </div>
+    <div class="form-row">
+        <div style="margin-left: 10px;">
+            <div>
+                <div style="display: flex; margin-bottom: 5px;">
+                    <input style="width: auto; margin: 0 10px;" type="radio" name="node-input-unit" id="node-input-unit-decimal" value="0" />
+                    <span>Input in decimal (e.g 180.23 as 180.23 degrees)</span>
+                </div>
+                <div style="display: flex;">
+                    <input style="width: auto; margin: 0 10px;" type="radio" name="node-input-unit" id="node-input-unit-integer" value="1" />
+                    <span>Input in integer (e.g 18023 as 180.23 degrees)</span>
+                </div>
             </div>
         </div>
     </div>
@@ -69,7 +87,7 @@
             input: { value: "payload", required: true },
             "input-type": { value: "msg" },
             output: { required: true, value: "0" },
-            inputInDegrees: { value: false }
+            unit: { value: "0" }
         },
         inputs: 1,
         outputs: 1,
@@ -86,12 +104,12 @@
                 typeField: "#node-input-input-type",
             });
             $(`input[name="node-input-output"][value="${node.output}"]`).prop("checked", true);
-            $("#node-input-inputInDegrees").prop("checked", node.inputInDegrees);
+            $(`input[name="node-input-unit"][value="${node.unit || "0"}"]`).prop("checked", true);
         },
         oneditsave: function () {
             this.output = $('input[name="node-input-output"]:checked').val();
             this.input = $("#node-input-input").typedInput("value");
-            this.inputInDegrees = $("#node-input-inputInDegrees").is(":checked");
+            this.unit = $('input[name="node-input-unit"]:checked').val();
         },
     });
 </script>
@@ -112,8 +130,8 @@ Valid input formats:
 - String containing a number: `"45"`
 
 ## Input Format
-- **Raw Value (default)**: Input is in motor units (hundredths of degrees)
-- **Input in Degrees**: When checked, input is treated as degrees and multiplied by 100 internally
+- **Input in decimal**: Input is in decimal degrees (e.g., 180.23°)
+- **Input in integer**: Input is in integer format representing hundredths of degrees (e.g., 18023 = 180.23°)
 
 ## Output Modes
 
@@ -166,4 +184,4 @@ When using raw values:
 - When "Input in Degrees" is not checked, the input is used directly as motor units
 
 > **Hardware Note**: Due to hardware limitations, please avoid setting the Yaw motor at 0° or 360°, and the Pitch motor at 0° or 180° for extended periods to prevent motor overload.
-</script> 
+</script>

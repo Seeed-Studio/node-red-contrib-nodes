@@ -1,10 +1,14 @@
 module.exports = function (RED) {
+    let activePreviewNodes = 0;
+    
     function PreviewNode(config) {
         RED.nodes.createNode(this, config);
         const node = this;
         this.alive = true;
         this.active = config.active === null || typeof config.active === "undefined" || config.active;
 
+        activePreviewNodes++;
+        
         node.timeout = setTimeout(function () {
             node.alive = false;
             node.timeout = null;
@@ -45,35 +49,50 @@ module.exports = function (RED) {
                 clearTimeout(this.timeout);
                 this.timeout = null;
             }
+            
+            activePreviewNodes--;
+            
             node.status({});
         });
     }
     RED.nodes.registerType("preview", PreviewNode);
 
-    // Via the button on the node (in the FLOW EDITOR), the image pushing can be enabled or disabled
     RED.httpAdmin.post("/image-output/:id/:state", RED.auth.needsPermission("image-output.write"), function (req, res) {
         const state = req.params.state;
         const node = RED.nodes.getNode(req.params.id);
-        if (node === null || typeof node === "undefined") {
-            // set all the preview node's active state
-            RED.nodes.eachNode(function (n) {
-                const node = RED.nodes.getNode(n.id);
-                if (node === null) {
-                    return;
-                }
-                if (n.type === "preview") {
-                    if (state === "alive") {
-                        node.alive = true;
-                        if (node.timeout !== null) {
-                            clearTimeout(node.timeout);
-                            node.timeout = null;
+        
+        if (state === "alive") {
+            if (activePreviewNodes === 0 && req.params.id === "0") {
+                res.send("no active preview nodes");
+                return;
+            }
+            
+            if (node === null || typeof node === "undefined") {
+                RED.nodes.eachNode(function (n) {
+                    const node = RED.nodes.getNode(n.id);
+                    if (node === null) {
+                        return;
+                    }
+                    if (n.type === "preview") {
+                        if (state === "alive") {
+                            node.alive = true;
+                            if (node.timeout !== null) {
+                                clearTimeout(node.timeout);
+                                node.timeout = null;
+                            }
                         }
                     }
-                }
-            });
-            res.send("alive");
+                });
+                res.send("alive");
+                return;
+            }
+        }
+        
+        if (node === null || typeof node === "undefined") {
+            res.sendStatus(404);
             return;
         }
+        
         if (state === "enable") {
             node.active = true;
             res.send("activated");
