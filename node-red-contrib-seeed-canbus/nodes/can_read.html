@@ -1,75 +1,88 @@
-<script type="text/javascript">
-    RED.nodes.registerType('can-read', {
-        category: "CAN Bus",
-        color: "#A6D996",
-        defaults: {
-            name: { value: "" },
-            client: { value: "", type: "can-config", required: true }
-        },
-        inputs: 0,  // 无输入
-        outputs: 1, // 1个输出
-        icon: "font-awesome/fa-inbox",
-        label: function() {
-            return this.name || "CAN Read";
-        },
-        paletteLabel: "CAN read",
-        oneditprepare: function() {
-            // 此处可以添加打开编辑对话框时的逻辑
-        },
-        oneditsave: function() {
-            // 此处可以添加保存设置时的逻辑
-        }
-    });
-</script>
-
 <script type="text/html" data-template-name="can-read">
     <div class="form-row">
         <label for="node-input-name">
             <i class="fa fa-tag"></i>
             <span>Name</span>
         </label>
-        <input type="text" id="node-input-name" placeholder="Name">
+        <input type="text" id="node-input-name" />
     </div>
     <div class="form-row">
         <label for="node-input-client">
             <i class="fa fa-globe"></i>
             <span>Client</span>
         </label>
-        <input type="text" id="node-input-client">
+        <input type="text" id="node-input-client" />
+    </div>
+
+    <div class="form-row">
+        <label for="node-input-filter">
+            <i class="fa fa-filter"></i>
+            <span>Filter</span>
+        </label>
+        <select id="node-input-filter" style="width: 70%;">
+            <option value="none">No Filter (All commands)</option>
+            <option value="A4">A4 Commands (Absolute Position)</option>
+            <option value="A6">A6 Commands (Absolute Position Legacy)</option>
+            <option value="A8">A8 Commands (Relative Offset)</option>
+            <option value="94">94 Commands (Status Query)</option>
+        </select>
     </div>
 </script>
 
-<script type="text/html" data-help-name="can-read">
-    <p>A node that continuously listens for CAN messages on the configured interface.</p>
-    
-    <h3>Outputs</h3>
-    <dl class="message-properties">
-        <dt>payload <span class="property-type">string</span></dt>
-        <dd>
-            A string in the format "ID#DATA" (e.g., "141#c1.0a.64.00.00.00.00.00")
-            where ID is the CAN message ID in hexadecimal and DATA is dot-separated hex bytes.
-        </dd>
-        <dt>details <span class="property-type">object</span></dt>
-        <dd>
-            <ul>
-                <li><b>id</b> - CAN message ID in hexadecimal format</li>
-                <li><b>data</b> - Array of 8 bytes in hexadecimal format</li>
-                <li><b>raw</b> - Dot-separated hex string of the data bytes</li>
-            </ul>
-        </dd>
-        <dt>timestamp <span class="property-type">number</span></dt>
-        <dd>Timestamp when the message was received (milliseconds since epoch)</dd>
-        <dt>topic <span class="property-type">string</span></dt>
-        <dd>Set to "can-message"</dd>
-    </dl>
-    
-    <h3>Details</h3>
-    <p>This node automatically starts listening for CAN messages on the configured interface when deployed.</p>
-    <p>It will output a message for each CAN frame received on the bus.</p>
-    <p>The output format is compatible with the CAN Write node, using the standard "ID#DATA" format.</p>
-    
-    <h3>Example Output</h3>
-    <pre>{
+<script type="text/javascript">
+    RED.nodes.registerType("can-read", {
+        category: "CAN Bus",
+        color: "#A6D996",
+        defaults: {
+            name: { value: "" },
+            client: { value: "", type: "can-config", required: true },
+            filter: { value: "none" },
+        },
+        inputs: 0, // 无输入
+        outputs: 1, // 1个输出
+        icon: "font-awesome/fa-inbox",
+        label: function () {
+            return this.name || "CAN Read";
+        },
+        paletteLabel: "CAN read",
+        oneditprepare: function () {
+            // 设置过滤器选项
+            $("#node-input-filter").val(this.filter || "none");
+        },
+        oneditsave: function () {
+            // 保存过滤器设置
+            this.filter = $("#node-input-filter").val();
+        },
+    });
+</script>
+
+<script type="text/markdown" data-help-name="can-read">
+# CAN Read
+
+This node continuously listens for CAN messages on the configured interface and outputs them in a standardized format.
+
+## Overview
+The node reads CAN bus messages and converts them to a structured format for use in Node-RED flows. It includes support for filtering specific command types, such as absolute position commands (A4), relative offset commands (A8), or status query commands (94).
+
+## Configuration
+
+### CAN Interface
+Select the CAN interface configuration to use.
+
+### Command Filter
+You can filter which command types the node outputs:
+- **No Filter**: Outputs all commands (default)
+- **A4 Commands**: Only outputs absolute position commands
+- **A6 Commands**: Only outputs legacy absolute position commands
+- **A8 Commands**: Only outputs relative offset commands
+- **94 Commands**: Only outputs status query commands
+
+## Outputs
+
+The node outputs a message for each relevant CAN frame received:
+
+```json
+{
   "payload": "141#c1.0a.64.00.00.00.00.00",
   "details": {
     "id": "141",
@@ -78,10 +91,34 @@
   },
   "timestamp": 1632048172456,
   "topic": "can-message"
-}</pre>
-    
-    <h3>References</h3>
-    <ul>
-        <li><a href="https://github.com/seeedstudio/node-red-contrib-seeed-canbus">GitHub</a> - the nodes github repository</li>
-    </ul>
-</script> 
+}
+```
+
+### Output Properties
+
+- **payload** (string): A string in the format "ID#DATA" where ID is the CAN message ID in hexadecimal and DATA is dot-separated hex bytes
+- **details** (object): 
+  - **id**: CAN message ID in hexadecimal format
+  - **data**: Array of bytes in hexadecimal format
+  - **raw**: Dot-separated hex string of the data bytes
+- **timestamp**: Time when the message was received (milliseconds since epoch)
+- **topic**: Set to "can-message"
+
+## Behavior
+
+- The node automatically starts listening for CAN messages when deployed
+- It outputs a message for each relevant CAN frame received
+- When filtering is enabled, only messages matching the selected command type will be output
+- The node status shows the last received message or filter status
+- The output format is compatible with the CAN Write node
+
+## Technical Notes
+
+- The node uses a shared channel to communicate with the CAN interface
+- The first byte of the data field is used for command type filtering
+- If the CAN interface is not available, the node will show an error status
+
+## References
+
+* [GitHub](https://github.com/seeedstudio/node-red-contrib-seeed-canbus) - the nodes github repository
+</script>

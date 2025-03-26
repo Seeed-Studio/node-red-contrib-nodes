@@ -26,8 +26,8 @@ module.exports = function (RED) {
                 if (msg.payload.data.counts) {
                     const countA = msg.payload.data.counts[0];
                     const countB = msg.payload.data.counts[1];
-                    const countAB = msg.payload.data.counts[2];
-                    const countBA = msg.payload.data.counts[3];
+                    const countBA = msg.payload.data.counts[2];
+                    const countAB = msg.payload.data.counts[3];
                     const textContent = `A: ${countA} B: ${countB} A->B: ${countAB} B->A: ${countBA}`;
                     node.status({ fill: "blue", shape: "dot", text: textContent });
                 }

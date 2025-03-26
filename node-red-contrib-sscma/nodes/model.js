@@ -57,7 +57,6 @@ module.exports = function (RED) {
                     node.client.request(node.id, "config", config);
                 }
             } catch (error) {
-                console.log(error, "----出现了错误");
                 return msg;
             }
         });
@@ -74,7 +73,6 @@ module.exports = function (RED) {
         });
 
         node.message = function (msg) {
-            // console.log(msg.payload.name);
             node.send(msg);
         };
         if (node.client) {

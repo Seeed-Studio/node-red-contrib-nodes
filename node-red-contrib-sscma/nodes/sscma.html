@@ -65,12 +65,16 @@
     });
     RED.events.on("nodes:add", function (node) {
         if (node.type == "sscma") {
+            let count = 0;
             RED.nodes.eachConfig(function (n) {
-                if (n.id != node.id) {
-                    RED.notify("This node can only be instantiated once.", "error");
-                    RED.nodes.remove(node.id);
+                if (n.type == "sscma") {
+                    count++;
                 }
             });
+            if (count > 1) {
+                RED.notify("This node can only be instantiated once.", "error");
+                RED.nodes.remove(node.id);
+            }
         }
     });
 </script>

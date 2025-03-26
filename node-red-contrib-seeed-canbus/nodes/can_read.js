@@ -6,40 +6,64 @@ module.exports = function(RED) {
         const node = this;
         const client = RED.nodes.getNode(config.client);
         
-        // 节点内部变量
+        // Node internal variables
         let canChannel = null;
         let isListening = false;
         let handlerId = -1;
         
+        // Get filter settings
+        const commandFilter = config.filter || "none";
+        
         /**
-         * 处理接收到的CAN消息
-         * @param {Object} msg - SocketCAN消息
+         * Process received CAN messages
+         * @param {Object} msg - SocketCAN message
          */
         function handleCanMessage(msg) {
             try {
-                // 转换数据为十六进制字符串
-                const dataHex = Buffer.from(msg.data).toString('hex').match(/.{1,2}/g);
+                // Get raw byte data as numeric array
+                const dataBytes = Array.from(msg.data);
                 
-                // 格式化消息ID为十六进制字符串
-                const idHex = msg.id.toString(16).toUpperCase();
+                // Convert to hex strings for display and legacy format
+                const dataHex = dataBytes.map(b => b.toString(16).padStart(2, '0').toUpperCase());
                 
-                // 生成标准格式 ID#DATA
+                // Get numeric ID
+                const id = msg.id;
+                
+                // Format ID as hex string for display
+                const idHex = id.toString(16).toUpperCase();
+                
+                // Generate standard format ID#DATA for display and backward compatibility
                 const canMessage = `${idHex}#${dataHex.join('.')}`;
                 
-                // 创建输出消息
+                // Check command type filter
+                if (commandFilter !== "none" && dataBytes.length > 0) {
+                    // Get first byte as command type
+                    const commandType = dataHex[0];
+                    
+                    // Skip the message if it doesn't match the filter
+                    if (commandType !== commandFilter) {
+                        // Update node status to show filter information
+                        node.status({
+                            fill: "blue",
+                            shape: "dot", 
+                            text: `Filtered: ${commandType} (not ${commandFilter})`
+                        });
+                        return; // Skip non-matching messages
+                    }
+                }
+                
+                // Create output message with both numeric and string formats
                 const output = {
-                    payload: canMessage,
-                    details: {
-                        id: idHex,
-                        data: dataHex,
-                        raw: dataHex.join('.')
+                    payload: {
+                        id: id,               // Numeric ID
+                        data: dataBytes       // Raw byte array
                     },
                 };
                 
-                // 发送消息到Node-RED流
+                // Send message to Node-RED flow
                 node.send(output);
                 
-                // 更新节点状态 - 显示最近收到的消息
+                // Update node status - show most recently received message
                 node.status({ 
                     fill: "green", 
                     shape: "dot", 
@@ -47,26 +71,31 @@ module.exports = function(RED) {
                 });
             } catch (error) {
                 node.error(`Error processing CAN message: ${error.message}`);
+                node.status({ 
+                    fill: "red", 
+                    shape: "ring", 
+                    text: `Error: ${error.message}` 
+                });
             }
         }
         
         /**
-         * 启动CAN监听器
+         * Start CAN listener
          */
         function startListener() {
             if (isListening) return;
             
             try {
-                // 获取CAN接口
+                // Get CAN interface
                 const canInterface = client.can.interface;
                 if (!canInterface) {
                     throw new Error("CAN interface not configured");
                 }
                 
-                // 获取共享的CAN通道
+                // Get shared CAN channel
                 canChannel = initCanChannel(canInterface);
                 
-                // 注册我们的消息处理器
+                // Register our message handler
                 handlerId = addMessageHandler(handleCanMessage);
                 
                 isListening = true;
@@ -79,13 +108,13 @@ module.exports = function(RED) {
         }
         
         /**
-         * 停止CAN监听器
+         * Stop CAN listener
          */
         function stopListener() {
             if (!isListening || handlerId < 0) return;
             
             try {
-                // 移除我们的消息处理器
+                // Remove our message handler
                 removeMessageHandler(handlerId);
                 handlerId = -1;
                 canChannel = null;
@@ -98,10 +127,10 @@ module.exports = function(RED) {
             }
         }
         
-        // 节点部署时自动启动监听器
+        // Automatically start listener when node is deployed
         startListener();
         
-        // 清理：节点被移除时停止监听器
+        // Cleanup: stop listener when node is removed
         node.on('close', function() {
             stopListener();
         });

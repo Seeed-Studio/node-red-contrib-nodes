@@ -121,7 +121,7 @@
             unit: { value: "0" },
         },
         inputs: 1,
-        outputs: 1,
+        outputs: 0,
         icon: "font-awesome/fa-compass",
         paletteLabel: "set motor angle",
         label: function () {
@@ -197,9 +197,17 @@ For dual-axis control, the input should be a JSON object with this structure:
 
 ## Output
 
-The node outputs a message with:
+This node does not produce any output messages. It only sets the motor angle and updates its status display to reflect the operation result.
 
--   **payload**: The final position value or values (for dual-axis)
+## Status Display
+
+The node displays the current operation in its status:
+- **Processing**: Blue dot with "Processing" text when command is being sent
+- **Success**: Green dot with details about the operation when completed successfully:
+  - For single axis: `Set Yaw: 90°` or `Offset Pitch: 10°`
+  - For dual axis: `Set Yaw: 90°, Pitch: 45°` or `Offset Yaw: 5°, Pitch: 10°`
+- **Error**: Red ring with error message if setting fails
+- **Busy**: Yellow ring with "Busy" text if the node is already processing a command
 
 ## Technical Notes
 
@@ -208,7 +216,7 @@ The node outputs a message with:
 -   When "Input in decimal" is selected, the decimal value is used directly
 -   When "Input in integer" is selected, the value is divided by 100 internally
 -   The motor speed is taken from global context or uses a default value
--   Angle values are automatically limited to the safe operating range
+-   The node uses command code A4 for absolute positioning and A8 for relative offsets
 
 > **Hardware Note**: Due to hardware limitations, please avoid setting the Yaw motor at 0° or 360°, and the Pitch motor at 0° or 180° for extended periods to prevent motor overload.
 </script>

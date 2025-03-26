@@ -2,13 +2,11 @@ const {
     YAW_ID,
     PITCH_ID,
     DEFAULT_SPEED,
-    YAW_MIN_VALUE,
-    YAW_MAX_VALUE,
-    PITCH_MIN_VALUE,
-    PITCH_MAX_VALUE,
     CURRENT_YAW_SPEED_KEY,
     CURRENT_PITCH_SPEED_KEY,
-    angleToHexString,
+    hexToSpeed,
+    createAbsolutePositionCommand,
+    createRelativeOffsetCommand,
 } = require("../utils/motor_utils");
 
 module.exports = function (RED) {
@@ -50,7 +48,9 @@ module.exports = function (RED) {
 
                 // Get current speed from global context or use default
                 const speedHex = globalContext.get(isYawMotor ? CURRENT_YAW_SPEED_KEY : CURRENT_PITCH_SPEED_KEY) ?? DEFAULT_SPEED;
-
+                // Convert speedHex to number
+                const speedValue = hexToSpeed(speedHex);
+                
                 // Process input value based on unit setting
                 let angleValue = numInputValue;
                 const unit = config.unit || "0";
@@ -61,37 +61,39 @@ module.exports = function (RED) {
                     angleValue = angleValue * 100; // Convert decimal degrees to motor units
                 }
 
-                let outputCommand;
+                // Create the CAN command object
+                let canCommand;
 
                 if (isAbsolute) {
-                    // Absolute angle mode (A6 command)
-                    let targetAngle = angleValue;
-
-                    // Apply angle limits based on motor type
-                    if (motorId === YAW_ID) {
-                        targetAngle = Math.max(YAW_MIN_VALUE, Math.min(YAW_MAX_VALUE, targetAngle));
-                    } else {
-                        targetAngle = Math.max(PITCH_MIN_VALUE, Math.min(PITCH_MAX_VALUE, targetAngle));
-                    }
-
-                    // Generate absolute position command (A6)
-                    // Direction is determined by the motor controller
-                    const angleHex = angleToHexString(targetAngle);
-                    outputCommand = `${motorId}#A6.00.${speedHex}.${angleHex}`;
+                    // Absolute angle mode
+                    // Create the CAN command object using the utility function
+                    canCommand = createAbsolutePositionCommand(motorId, speedValue, angleValue);
+                    
+                    // For status display only
+                    const displayText = `A4: ${motorId.toString(16).toUpperCase()} ${(angleValue/100).toFixed(2)}°`;
+                    node.status({
+                        fill: "green",
+                        shape: "dot",
+                        text: displayText,
+                    });
                 } else {
-                    // Relative offset mode (A8 command)
-                    const offsetHex = angleToHexString(angleValue);
-                    outputCommand = `${motorId}#A8.00.${speedHex}.${offsetHex}`;
+                    // Relative offset mode
+                    // Create the CAN command object using the utility function
+                    canCommand = createRelativeOffsetCommand(motorId, speedValue, angleValue);
+                    
+                    // For status display only
+                    const sign = angleValue >= 0 ? "+" : "";
+                    const displayText = `A8: ${motorId.toString(16).toUpperCase()} ${sign}${(angleValue/100).toFixed(2)}°`;
+                    node.status({
+                        fill: "green",
+                        shape: "dot",
+                        text: displayText,
+                    });
                 }
 
-                node.status({
-                    fill: "green",
-                    shape: "dot",
-                    text: outputCommand,
-                });
-
-                // Send the command to output
-                node.send({ payload: outputCommand });
+                // Send the CAN command object to output
+                msg.payload = canCommand;
+                node.send(msg);
             } catch (error) {
                 // Handle errors
                 node.error(`Error encoding motor angle: ${error.message}`);

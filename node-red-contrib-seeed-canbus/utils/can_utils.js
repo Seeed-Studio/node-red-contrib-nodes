@@ -112,6 +112,7 @@ function clearCommandState() {
 
 /**
  * Process the next command in the queue
+ * This function handles the command queue processing and ensures proper command execution
  */
 async function processNextCommand() {
     // If already processing or queue is empty, return
@@ -127,7 +128,7 @@ async function processNextCommand() {
         const nextCmd = commandQueue.shift();
         const { canInterface, motorId, commandData, timeout, resolve, reject } = nextCmd;
 
-        // Execute the command
+        // Execute the command - commandData 已经是字节数组格式
         await executeCommand(canInterface, motorId, commandData, timeout, resolve, reject);
     } catch (error) {
         console.error("Error processing command queue:", error);
@@ -135,9 +136,8 @@ async function processNextCommand() {
         // Reset processing flag
         isProcessingQueue = false;
 
-        // Check if there are more commands to process
+        // Process next command if any
         if (commandQueue.length > 0 && !currentCommand) {
-            // Process next command after a short delay to allow state reset
             setTimeout(processNextCommand, 50);
         }
     }
@@ -146,9 +146,9 @@ async function processNextCommand() {
 /**
  * Execute a specific CAN command
  * @param {string} canInterface - CAN bus interface name
- * @param {string} motorId - Motor ID (hex)
- * @param {Array<string>} commandData - Command data array
- * @param {number} timeout - Timeout in milliseconds
+ * @param {Number} motorId - Motor ID in hex format (0x141 or 0x142)
+ * @param {Array} commandData - Command data as byte array
+ * @param {Number} timeout - Timeout in milliseconds
  * @param {Function} resolve - Promise resolve function
  * @param {Function} reject - Promise reject function
  */
@@ -159,11 +159,8 @@ async function executeCommand(canInterface, motorId, commandData, timeout, resol
     }
 
     try {
-        // Convert command data array to dot-separated string
-        const commandString = commandData.join('.');
-        
-        // Convert motor ID from hex string to decimal
-        const motorIdDecimal = parseInt(motorId, 16);
+        // 直接使用数字数组创建Buffer
+        const commandBuffer = Buffer.from(commandData);
         
         // Ensure CAN channel is initialized
         const channel = initCanChannel(canInterface);
@@ -174,19 +171,16 @@ async function executeCommand(canInterface, motorId, commandData, timeout, resol
             return;
         }
         
-        // Prepare command data
-        const commandBuffer = Buffer.from(commandString.replace(/\./g, ''), 'hex');
-        
         // Set current command state
         clearCommandState(); // Clear any previous state
-        currentCommand = commandString;
-        currentMotorId = motorIdDecimal;
+        currentCommand = commandData;
+        currentMotorId = motorId;
         currentResolver = resolve;
         currentRejecter = reject;
         
         // Set timeout timer
         commandTimeout = setTimeout(() => {
-            console.error(`Command timeout: Motor ${motorId} not responding`);
+            console.error(`Command timeout: Motor 0x${motorId.toString(16).toUpperCase()} not responding`);
             
             // 简化超时处理逻辑
             const resolver = currentResolver;
@@ -204,7 +198,7 @@ async function executeCommand(canInterface, motorId, commandData, timeout, resol
         
         // Send command
         channel.send({
-            id: motorIdDecimal,
+            id: motorId,
             data: commandBuffer,
             ext: false,
             rtr: false
@@ -251,23 +245,39 @@ function processResponse() {
 }
 
 /**
- * SocketCAN message handler
- * @param {Object} msg - SocketCAN message
+ * Handle incoming SocketCAN messages
+ * @param {Object} msg - SocketCAN message object
  */
 function handleSocketCANMessage(msg) {
     // If no pending command, return
     if (currentCommand && currentResolver && msg.id === currentMotorId) {
-        // Convert data to hex string
-        const dataHex = Buffer.from(msg.data).toString('hex').match(/.{1,2}/g).join('.');
+        // 获取接收到消息的字节数组
+        const receivedData = Array.from(msg.data);
         
-        // 存储接收到的消息 - 简化为只存储单个消息
-        receivedMessage = {
-            data: msg.data,
-            dataHex: dataHex
-        };
-                
-        // 收到消息后立即处理响应
-        processResponse();
+        // 检查是否是命令回显
+        let isEcho = true;
+        if (currentCommand.length === receivedData.length) {
+            for (let i = 0; i < currentCommand.length; i++) {
+                if (currentCommand[i] !== receivedData[i]) {
+                    isEcho = false;
+                    break;
+                }
+            }
+        } else {
+            isEcho = false;
+        }
+        
+        // 如果收到的不是命令回显，则认为是响应
+        if (!isEcho) {
+            // 存储接收到的消息
+            receivedMessage = {
+                data: msg.data,
+                dataHex: Buffer.from(msg.data).toString('hex')
+            };
+                    
+            // 收到消息后立即处理响应
+            processResponse();
+        }
     }
     
     // 调用所有注册的外部消息处理器
@@ -286,10 +296,10 @@ function handleSocketCANMessage(msg) {
 /**
  * Send CAN command using SocketCAN and wait for response
  * @param {string} canInterface - CAN bus interface name
- * @param {string} motorId - Motor ID (hex)
- * @param {Array<string>} commandData - Command data array
+ * @param {Number} motorId - Motor ID (decimal numeric value)
+ * @param {Array<Number>} commandData - Command data byte array (numeric values)
  * @param {number} timeout - Timeout in milliseconds
- * @returns {Promise<Array>} Response data
+ * @returns {Promise<Array>} Response data as hex string array
  */
 async function sendMotorCommand(canInterface, motorId, commandData, timeout = 1000) {
     if (!socketcan) {
@@ -297,11 +307,31 @@ async function sendMotorCommand(canInterface, motorId, commandData, timeout = 10
     }
     
     return new Promise((resolve, reject) => {
+        // 确保 motorId 是数字类型
+        if (typeof motorId !== 'number') {
+            reject(new Error("Motor ID must be a number"));
+            return;
+        }
+        
+        // 确保 commandData 是数组类型
+        if (!Array.isArray(commandData)) {
+            reject(new Error("Command data must be an Array"));
+            return;
+        }
+        
+        // 验证每个字节是有效的数字
+        for (let i = 0; i < commandData.length; i++) {
+            if (typeof commandData[i] !== 'number' || commandData[i] < 0 || commandData[i] > 255) {
+                reject(new Error(`Invalid byte in command data at position ${i}: ${commandData[i]}`));
+                return;
+            }
+        }
+        
         // Add command to queue
         commandQueue.push({
             canInterface,
             motorId,
-            commandData,
+            commandData, // 直接传递字节数组
             timeout,
             resolve: result => {
                 if (result.success) {
@@ -329,26 +359,27 @@ async function sendMotorCommand(canInterface, motorId, commandData, timeout = 10
 }
 
 /**
- * Check if CAN payload input is valid
- * @param {Object|String} data - Input data to check (object or string format)
- * @returns {Object} Validated input data
+ * Validates and formats CAN payload input
+ * @param {Object|String} input - Input data in either object format {id: string, data: string} or string format "ID#DATA"
+ * @returns {Object} Object containing validated id (number) and data (array of numbers)
+ * @throws {Error} If input format is invalid
  */
-function checkCanPayloadInput(data) {
-    let id, items;
+function checkCanPayloadInput(input) {
+    let idStr, items;
 
     // 处理字符串格式输入: "141#c1.0a.64.00.00.00.00.00"
-    if (typeof data === 'string') {
-        const parts = data.split('#');
+    if (typeof input === 'string') {
+        const parts = input.split('#');
         if (parts.length !== 2) {
             throw new Error("Invalid string format. Expected: ID#DATA (e.g. 141#c1.0a.64.00.00.00.00.00)");
         }
         
-        id = parts[0].trim();
+        idStr = parts[0].trim();
         items = parts[1].split('.').map(item => item.trim());
         
         // 验证ID是否为有效的十六进制字符串
-        if (!/^[0-9A-Fa-f]+$/.test(id)) {
-            throw new Error(`CAN ID ${id} is not a valid hex value`);
+        if (!/^[0-9A-Fa-f]+$/.test(idStr)) {
+            throw new Error(`CAN ID ${idStr} is not a valid hex value`);
         }
         
         // 验证数据部分
@@ -357,12 +388,12 @@ function checkCanPayloadInput(data) {
         }
     }
     // 处理对象格式输入: { id: "141", data: ["C1", "0A", ...] }
-    else if (data && typeof data === "object") {
-        id = data.id;
-        items = data.data;
+    else if (input && typeof input === "object") {
+        idStr = input.id;
+        items = input.data;
 
-        if (!id || typeof id !== "string") {
-            throw new Error("CAN ID must be a string");
+        if (!idStr || (typeof idStr !== "string" && typeof idStr !== "number")) {
+            throw new Error("CAN ID must be a string or number");
         }
 
         if (!items || !Array.isArray(items)) {
@@ -378,14 +409,33 @@ function checkCanPayloadInput(data) {
         throw new Error("Data items must be exactly 8 bytes");
     }
 
-    // 验证每个项是有效的十六进制字节
-    for (let i = 0; i < items.length; i++) {
-        if (typeof items[i] !== 'string' || !/^[0-9A-Fa-f]{2}$/.test(items[i])) {
-            throw new Error(`Data byte at index ${i} (${items[i]}) is not a valid hex byte`);
-        }
+    // 将ID转换为数字
+    const id = (typeof idStr === 'number') ? idStr : parseInt(idStr, 16);
+    if (isNaN(id)) {
+        throw new Error(`Invalid CAN ID: ${idStr}`);
     }
 
-    return { id, items };
+    // 将数据项转换为数字数组
+    const dataArray = [];
+    for (let i = 0; i < items.length; i++) {
+        let byteValue;
+        
+        if (typeof items[i] === 'number') {
+            byteValue = items[i];
+        } else if (typeof items[i] === 'string' && /^[0-9A-Fa-f]{1,2}$/.test(items[i])) {
+            byteValue = parseInt(items[i], 16);
+        } else {
+            throw new Error(`Data byte at index ${i} (${items[i]}) is not a valid hex byte`);
+        }
+        
+        if (byteValue < 0 || byteValue > 255) {
+            throw new Error(`Data byte at index ${i} (${items[i]}) is out of range (0-255)`);
+        }
+        
+        dataArray.push(byteValue);
+    }
+
+    return { id, data: dataArray };
 }
 
 /**

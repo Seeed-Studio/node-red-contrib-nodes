@@ -115,73 +115,83 @@
 </script>
 
 <script type="text/markdown" data-help-name="angle-to-can">
-# angle to CAN
+# Angle to CAN
 
-This node converts angle values into CAN bus motor control commands for the reCamera Gimbal system.
+This node converts angle values into CAN bus motor control commands for reCamera Gimbal motors.
 
 ## Overview
-The node takes an angle value as input and generates a properly formatted CAN frame command string for controlling the gimbal motors. It supports both absolute position and relative offset modes for both yaw (horizontal) and pitch (vertical) axes.
+The node takes a numeric angle value as input and generates a CAN message object that can be sent directly to a CAN bus interface or to a CAN Write node.
+
+## Configuration
+
+### Motor Type
+Select which motor to control:
+- **Yaw** (horizontal axis): Used for left/right movement
+- **Pitch** (vertical axis): Used for up/down movement
+
+### Control Mode
+Choose the type of control:
+- **Absolute Position**: Set the motor to a specific angle
+- **Relative Offset**: Move the motor by a specific angle offset from current position
+
+### Input
+Specify the source of the angle value:
+- **msg.payload**: Use the value in the payload
+- **flow.xxx**: Use a value from flow context
+- **global.xxx**: Use a value from global context
+
+### Speed
+Set the motor movement speed (0-255)
+
+### Number Format
+Choose how to interpret your input value:
+- **Decimal degrees**: Input is in standard degrees (e.g., 90.5°)
+- **Motor units**: Input is in motor internal units (hundredths of degrees, e.g., 9050 = 90.5°)
 
 ## Input
-The input should be a numeric value representing an angle. The interpretation of this value depends on the selected input format and output mode.
-
-Valid input formats:
-- Number: `90`
-- String containing a number: `"45"`
-
-## Input Format
-- **Input in decimal**: Input is in decimal degrees (e.g., 180.23°)
-- **Input in integer**: Input is in integer format representing hundredths of degrees (e.g., 18023 = 180.23°)
-
-## Output Modes
-
-### Yaw Axis (Left and Right)
-- **Absolute Position**: Sets the yaw motor to a specific angle (0-360°)
-- **Relative Offset**: Moves the yaw motor by the specified offset (-360° to +360°)
-
-### Pitch Axis (Up and Down)
-- **Absolute Position**: Sets the pitch motor to a specific angle (0-180°)
-- **Relative Offset**: Moves the pitch motor by the specified offset (-180° to +180°)
-
-## Output
-The node outputs a CAN frame command string in the format:
-```
-motorId#commandType.direction.speed.angleHex
-```
+The input should be a numeric value representing the target angle (for absolute positioning) or angle offset (for relative movement).
 
 Examples:
-- Yaw absolute position: `141#A6.00.5A.00.50.46.00.00` (180°)
-- Pitch absolute position: `142#A6.00.5A.00.28.23.00.00` (90°)
-- Yaw relative offset: `141#A8.00.5A.00.88.13.00.00` (+50°)
-- Pitch relative offset: `142#A8.00.5A.00.60.EA.FF.FF` (-20°)
+- `90.5` - Move to 90.5 degrees (when using decimal degrees)
+- `9050` - Move to 90.5 degrees (when using motor units)
+- `-10` - Move 10 degrees counterclockwise (when using relative offset)
 
-## Command Types
-- **A6**: Used for absolute position control
-- **A8**: Used for relative offset control
+## Output
+The node outputs a CAN message object that can be sent directly to a CAN bus:
 
-## Motor IDs
-- **Yaw motor (horizontal)**: `141`
-- **Pitch motor (vertical)**: `142`
+```json
+{
+  "payload": {
+    "id": 0x141,  // Motor ID in hex format (0x141 for Yaw, 0x142 for Pitch)
+    "data": [0xA4, 0x00, 0x5A, 0x00, 0x10, 0x27, 0x00, 0x00]  // Command data as byte array
+  }
+}
+```
+
+## Command Format
+The output CAN message follows this format:
+
+### Absolute Position Command:
+- **Byte 0**: Command type (0xA4)
+- **Byte 1**: Direction (0x00)
+- **Byte 2-3**: Speed (2 bytes, little-endian)
+- **Byte 4-7**: Angle (4 bytes, little-endian)
+
+### Relative Offset Command:
+- **Byte 0**: Command type (0xA8)
+- **Byte 1**: Direction (0x00)
+- **Byte 2-3**: Speed (2 bytes, little-endian)
+- **Byte 4-7**: Offset (4 bytes, little-endian)
 
 ## Angle Limits
-When using "Input in Degrees":
-- **Yaw**: 9° to 340° (absolute), -360° to +360° (relative)
-- **Pitch**: 9° to 175° (absolute), -180° to +180° (relative)
+- **Yaw**: -180° to +180°
+- **Pitch**: -90° to +90°
 
-When using raw values:
-- **Yaw**: 900 to 34000 (absolute), -36000 to +36000 (relative)
-- **Pitch**: 900 to 17500 (absolute), -18000 to +18000 (relative)
+Values outside these ranges will be automatically limited to the allowed range.
 
 ## Notes
-- The motor speed is taken from global context or uses a default value
-- Angle values are automatically limited to the safe operating range
-- The node handles the conversion between input format and motor units
-- Direction is automatically determined based on the target position
-
-## Technical Notes
-- Motor units are in hundredths of degrees (0.01 degree/LSB)
-- When "Input in Degrees" is checked, the node multiplies the input by 100
-- When "Input in Degrees" is not checked, the input is used directly as motor units
-
-> **Hardware Note**: Due to hardware limitations, please avoid setting the Yaw motor at 0° or 360°, and the Pitch motor at 0° or 180° for extended periods to prevent motor overload.
+- The node converts input values to the proper internal format for the motor
+- For absolute position, angles are automatically limited to the valid range for each motor
+- The output format is compatible with the CAN Write node and direct SocketCAN interfaces
+- Status updates show the target angle or offset value
 </script>

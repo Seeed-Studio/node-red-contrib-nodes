@@ -83,20 +83,36 @@
 This node decodes CAN bus motor control commands into human-readable angle values for reCamera Gimbal motors.
 
 ## Overview
-The node takes a CAN frame command string as input and extracts the motor ID, command type, and angle/offset value. It supports both absolute position commands (A6) and relative offset commands (A8).
+The node takes a CAN message object as input and extracts the motor ID, command type, and angle/offset value. It supports absolute position commands (A4), relative offset commands (A8), and status query commands (94).
 
 ## Input Configuration
-The Input field allows you to specify the message property, flow context, or global context variable that contains the CAN frame command string. By default, it uses `msg.payload`.
+The Input field allows you to specify the message property, flow context, or global context variable that contains the CAN message object. By default, it uses `msg.payload`.
 
 ## Input Format
-The input should be a CAN frame command string in the format:
-```
-motorId#commandType.direction.speed.angleHex
+The input should be a CAN message object with the following structure:
+```json
+{
+  "id": 0x141,  // Motor ID in hex format (0x141 for Yaw, 0x142 for Pitch)
+  "data": [...]  // Byte array containing the command data (8 bytes)
+}
 ```
 
-Examples:
-- `141#A6.00.2C.01.10.27.00.00` (Yaw motor absolute position)
-- `142#A8.00.2C.01.F4.01.00.00` (Pitch motor relative offset)
+Example:
+```json
+{
+  "id": 0x141,
+  "data": [0xA4, 0x00, 0x5A, 0x00, 0x10, 0x27, 0x00, 0x00]
+}
+```
+
+## Command Validation
+The node includes advanced validation to ensure only meaningful data commands are processed:
+
+- **94 commands**: Must NOT have all remaining bytes as zero (which would indicate a query, not a response)
+- **A4/A6 commands**: The second byte must be 0x00 or 0x01 to be considered valid (excludes ACK responses like 0x2F)
+- **A8 commands**: The second byte must be 0x00 to be considered valid
+
+These validation rules prevent processing ACK responses and query commands that would result in incorrect angle calculations.
 
 ## Unit
 - **Output in decimal**: Outputs angle values in decimal degrees (e.g., 180.23°)
@@ -105,21 +121,21 @@ Examples:
 ## Output
 The node outputs a JSON object with the decoded information:
 
-For absolute position commands (A6) with "Output in decimal" selected:
+For absolute position commands (A4) with "Output in decimal" selected:
 ```json
 {
     "payload": {
-        "motorId": "141",
+        "motorId": 0x141,
         "angle": 90.5
     }
 }
 ```
 
-For absolute position commands (A6) with "Output in integer" selected:
+For absolute position commands (A4) with "Output in integer" selected:
 ```json
 {
     "payload": {
-        "motorId": "141",
+        "motorId": 0x141,
         "angle": 9050
     }
 }
@@ -129,29 +145,31 @@ For relative offset commands (A8) with "Output in decimal" selected:
 ```json
 {
     "payload": {
-        "motorId": "142",
+        "motorId": 0x142,
         "offset": 5.0
     }
 }
 ```
 
-For relative offset commands (A8) with "Output in integer" selected:
+For status query commands (94) with "Output in decimal" selected:
 ```json
 {
     "payload": {
-        "motorId": "142",
-        "offset": 500
+        "motorId": 0x141,
+        "status": true,
+        "angle": 90.5
     }
 }
 ```
 
 ## Motor IDs
-- Yaw motor (horizontal): `141`
-- Pitch motor (vertical): `142`
+- Yaw motor (horizontal): `0x141`
+- Pitch motor (vertical): `0x142`
 
 ## Command Types
-- `A6`: Absolute position command
-- `A8`: Relative offset command
+- `0xA4`: Absolute position command
+- `0xA8`: Relative offset command
+- `0x94`: Status query command
 
 ## Angle Units
 - **Raw Value**: Motor units (hundredths of degrees)
@@ -162,9 +180,12 @@ For relative offset commands (A8) with "Output in integer" selected:
 - Error messages are displayed if the input format is invalid
 - When "Output in decimal" is selected, the values are more human-readable
 - When "Output in integer" is selected, the values match the motor's internal units
+- Invalid commands and ACK responses are filtered out with a yellow status indicator
 
 ## Technical Notes
 - Motor units are in hundredths of degrees (0.01 degree/LSB)
 - The raw value is useful for high-precision applications
 - The converted value is more human-readable
+- Status commands (94) return the current angle of the motor
+- ACK responses with second byte 0x2F are automatically filtered
 </script> 
