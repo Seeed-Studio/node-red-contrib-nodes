@@ -80,8 +80,7 @@
 <script type="text/markdown" data-help-name="can-to-angle">
 # CAN to angle
 
-
-This node decodes and converts the raw data read from CANbus to decimal angular values.
+This node decodes CAN bus motor control commands into human-readable angle values for reCamera Gimbal motors.
 
 ## Overview
 The node takes a CAN message object as input and extracts the motor ID, command type, and angle/offset value. It supports absolute position commands (A4), relative offset commands (A8), and status query commands (94).
