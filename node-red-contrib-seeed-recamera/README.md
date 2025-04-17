@@ -1,5 +1,8 @@
 ![Platform Node-RED](https://img.shields.io/badge/Platform-Node--RED-red.png)
 
+## Overview
+This Node-RED palette provides nodes for interacting with the Seeed Studio reCamera and reCamera Gimbal devices, allowing you to integrate hardware interface functionalities like light or motor control into your Node-RED flows.
+
 ## Installation
 
 To install the package in Node-RED, run the following command:
@@ -8,106 +11,99 @@ To install the package in Node-RED, run the following command:
 npm install node-red-contrib-seeed-recamera
 ```
 
-Or install directly through the Node-RED interface.
+Alternatively, you can install it through the Node-RED palette manager by searching for "node-red-contrib-seeed-recamera".
 
-### Motor Config
+## Categories
 
-Input motor parameters value for reCamera Gimbal, and output control motor CAN data frame according to the protocol.
-
--   Name: Custom naming.
--   Input: Access node information.
--   Output: The CAN bus protocol of the selected motor parameter such as absolute position, .
-
-#### Input:
-
-The input data type can be `number string` or `int` which stands for the motor parameters. 
-    
-- For Absolute Position:
-    -  Yaw axis angle (left and right): 0 to 360 degrees.
-    -  Pitch axis angle (up and down): 0 to 180 degrees.
-    -  Example: parsing in  `180` to `Yaw Axis Absolute Position (deg)` means that the yaw axis angle will move to 180 degrees.
-- For Relative Offset:
-    -  Yaw axis angle (left and right): -360 to 360 degrees.
-    -  Pitch axis angle (up and down): -180 to 180 degrees.
-    -  Example: parsing in  `5` to `Yaw Axis Relative Offset (deg)` means that the yaw axis angle will move 5 degrees to the right.
-- For Speed Setpoint:
-    -  Yaw axis speed(left and right): 0 to 65535 dps/LSB.
-    -  Pitch axis speed(up and down): 0 to 65535 dps/LSB.
-    -  Example: parsing in  `100` to `Yaw Axis Speed Setpoint` means that the yaw axis speed will be set to 10000 dps/LSB.
-
-> Note: Due to hardware limitations, please avoid setting the config for Yaw motor at 0 or 360 degrees, Pitch motor at 0 or 180 degrees for a continuous time frame, in case overloading the motors.
-
-#### Output:
-
-The output data is a CAN frame in hexadecimal format. The CAN frame is composed of `ID#Payload Data`.
--   ID: The ID of the CAN frame is 0x141 for Yaw axis and 0x142 for Pitch axis.
--   Payload Data: The payload data is composed of 8 bytes, each byte is a hexadecimal value. 
-
-For **absolute position and speed**, A6 command is used:
-Output is `${motorId}#A6.${direction}.${speedHex}.${angleHex}`
-
-With A6 command, The host sends this command to control the position (single - turn angle) of the motor. 
-The control value spinDirection sets the rotation direction of the motor. It is of uint8_t type. 0x00 represents clockwise rotation, and 0x01 represents counterclockwise rotation.
-angleControl is of uint32_t type. The corresponding actual position is 0.01 degree/LSB, that is, 36000 represents 360°.
-The speed control value maxSpeed limits the maximum rotation speed of the motor. It is of uint16_t type. The corresponding actual rotation speed is 1dps/LSB, that is, 360 represents 360dps.
-
-| Data Field | Description                             | Data                                      |
-| ---------- | --------------------------------------- | ----------------------------------------- |
-| DATA[0]    | Command Byte                            | 0xA6                                      |
-| DATA[1]    | Rotation Direction Byte                 | DATA[1] = spinDirection                   |
-| DATA[2]    | Speed Limit Byte 1 (bit0 : bit7)        | DATA[2] = *(uint8_t *)(&maxSpeed)         |
-| DATA[3]    | Speed Limit Byte 2 (bit8 : bit15)       | DATA[3] = *((uint8_t *)(&maxSpeed)+1)     |
-| DATA[4]    | Position Control Byte 1 (bit0 : bit7)   | DATA[4] = *(uint8_t *)(&angleControl)     |
-| DATA[5]    | Position Control Byte 2 (bit8 : bit15)  | DATA[5] = *((uint8_t *)(&angleControl)+1) |
-| DATA[6]    | Position Control Byte 3 (bit16 : bit23) | DATA[6] = *((uint8_t *)(&angleControl)+2) |
-| DATA[7]    | Position Control Byte 4 (bit24: bit31)  | DATA[7] = *((uint8_t *)(&angleControl)+3) |
-
-
-For **relative offset and speed**, A8 command is used:
-Output is `${motorId}#A8.00.${speedHex}.${offsetHex}`
-
-With A8 command, the host sends this command to control the position increment of the motor.
-
-The control value angleIncrement is of int32_t type. The corresponding actual position is 0.01 degree/LSB, that is, 36000 represents 360°. The rotation direction of the motor is determined by the sign of this parameter.
-The control value maxSpeed limits the maximum rotation speed of the motor. It is of uint32_t type. The corresponding actual rotation speed is 1dps/LSB, that is, 360 represents 360dps.
-
-| Data Field | Description                   | Data                                        |
-| ---------- | ----------------------------- | ------------------------------------------- |
-| DATA[0]    | Command Byte                  | 0xA8                                        |
-| DATA[1]    | NULL                          | 0x00                                        |
-| DATA[2]    | Low Byte of Speed Limit       | DATA[2] = *(uint8_t *)(&maxSpeed)           |
-| DATA[3]    | High Byte of Speed Limit      | DATA[3] = *((uint8_t *)(&maxSpeed)+1)       |
-| DATA[4]    | Low Byte of Position Control  | DATA[4] = *(uint8_t *)(&angleIncrement)     |
-| DATA[5]    | Position Control              | DATA[5] = *((uint8_t *)(&angleIncrement)+1) |
-| DATA[6]    | Position Control              | DATA[6] = *((uint8_t *)(&angleIncrement)+2) |
-| DATA[7]    | High Byte of Position Control | DATA[7] = *((uint8_t *)(&angleIncrement)+3) |
-
-If no speed value is passed in, the default speed value is 300.
-
-For example:
-
--   Yaw axis angle (Left and right): 180
--   Yaw axis speed(Left and right): 300
-
-output : `141#A4.00.2C.01.10.27.00.00`
-
--   Pitch axis angle (Left and right): 180
--   Pitch axis speed(Left and right): 300
-
-output : `142#A4.00.2C.01.10.27.00.00`
-
-
-### Light
+### reCamera Nodes
+#### Light
 
 This is the Light node for the build-in fill light on reCamera.
 
-#### Input
-
-Parse in ' msg.payload = on ' to start light, and ' msg.payload = off ' to stop light.
-
-#### Output
+***Input***：Parse in `msg.payload = on` to start light, and `msg.payload = off` to stop light.
 
 No output.
+
+### reCamera Gimbal Nodes
+#### Motor IDs for all nodes in this group:
+- Yaw motor (horizontal): `0x141`
+- Pitch motor (vertical): `0x142`
+#### Angle to CAN
+The node takes a numeric angle value as input and generates a CAN message object that can be sent directly to a CAN bus interface or to a CAN Write node.
+
+***Input***: should be a numeric value representing the target angle (for absolute positioning) or angle offset (for relative movement).
+
+***Outputs***: a CAN message object that can be sent directly to a CAN bus:
+
+#### CAN to Angle
+The node takes a CAN message object as input and extracts the motor ID, command type, and angle/offset value. It supports absolute position commands (A4), relative offset commands (A8), and status query commands (94).
+***Input***: should be a CAN message object with the following structure:
+```json
+{
+  "id": 0x141,  // Motor ID in hex format (0x141 for Yaw, 0x142 for Pitch)
+  "data": [...]  // Byte array containing the command data (8 bytes)
+}
+```
+
+***Outputs***: a JSON object with the decoded information:
+```json
+{
+    "payload": {
+        "motorId": ,
+        "angle": 
+    }
+}
+```
+
+#### Get Motor Angle
+The node queries the current position of either the yaw (horizontal) or pitch (vertical) motor and outputs the angle. This is useful for monitoring the current orientation of the camera or for implementing position-based logic in your flows.
+
+***Input***: Any input message will trigger the node to read the current motor angle. The content of the input message is not used.
+
+***Outputs***:The node outputs the current angle value in the `msg.payload` property:
+
+```json
+// With "Output in decimal" selected
+{
+    "payload": 90.5
+}
+
+// With "Output in integer" selected
+{
+    "payload": 9050
+}
+```
+#### Set Motor Angle
+This node configures and sends motor angle commands to the reCamera Gimbal motors using SocketCAN direct communication.
+
+***Input***:
+
+- For single-axis control, the input is a number representing the angle value.
+
+- For dual-axis control, the input should be a JSON object with this structure:
+
+    ```json
+    {
+        "yaw_angle": value,           // Horizontal angle in degrees
+        "yaw_speed": speed_value,     // Optional: 0-720
+        "pitch_angle": value,         // Vertical angle in degrees
+        "pitch_speed": speed_value    // Optional: 0-720
+    }
+    ```
+
+***Outputs***:
+This node does not produce any output messages. It only sets the motor angle and updates its status display to reflect the operation result.
+
+#### Set Motor Speed
+The node sets the speed value for either the yaw (horizontal) or pitch (vertical) motor. This speed setting is stored in the global context and used by other motor control nodes when sending movement commands using SocketCAN.
+
+***Input***:
+The input should be a numeric value representing the desired motor speed. The value can be provided in the following formats:
+
+-   Number: `90`
+-   String containing a number: `"45"`
+***Outputs***:
+This node does not produce any output messages. It only updates the global context variables and updates its status display to reflect the operation result.
 
 ## License
 
