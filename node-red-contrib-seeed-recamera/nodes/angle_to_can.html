@@ -117,7 +117,7 @@
 <script type="text/markdown" data-help-name="angle-to-can">
 # Angle to CAN
 
-This node converts and parses the decimal degrees to hexadecimal raw data for motor control.
+This node converts and parses the angle value in degrees to hexadecimal raw data for motor control.
 
 ## Overview
 The node takes a numeric angle value as input and generates a CAN message object that can be sent directly to a CAN bus interface or to a CAN Write node.
@@ -134,14 +134,11 @@ Choose the type of control:
 - **Absolute Position**: Set the motor to a specific angle
 - **Relative Offset**: Move the motor by a specific angle offset from current position
 
-### Input
+### Input source
 Specify the source of the angle value:
-- **msg.payload**: Use the value in the payload
+- **msg.xxx**: Use the value in the message such as payload or topic
 - **flow.xxx**: Use a value from flow context
 - **global.xxx**: Use a value from global context
-
-### Speed
-Set the motor movement speed (0-255)
 
 ### Number Format
 Choose how to interpret your input value:
