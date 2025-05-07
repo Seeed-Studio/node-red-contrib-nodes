@@ -16,32 +16,23 @@
 </script>
 
 <script type="text/javascript">
-    async function onClickLight() {
-        const label = this.name || "light";
-        const node = this;
+    async function onClickLight(node) {
+        const label = node.name || "light";
         try {
-            const data = await fetch(`/camera/${this.light ? "on" : "off"}`, {
+            const newState = node.light ? "on" : "off";
+            const data = await fetch(`/light/${newState}`, {
                 method: "POST",
-            });
+            });            
             if (data.ok) {
-                const historyEvent = {
-                    t: "edit",
-                    node: node,
-                    changes: {
-                        light: !node.light,
-                    },
-                    dirty: node.dirty,
-                    changed: node.changed,
-                };
-                node.changed = true;
-                node.dirty = true;
                 RED.nodes.dirty(true);
-                RED.history.push(historyEvent);
                 RED.view.redraw();
-                RED.notify(`Successfully ${this.light ? "on" : "off"}: ${label}`, "success");
+                RED.notify(`Successfully turned ${newState}: ${label}`, "success");
+
+                if ($("#node-input-light").length > 0) {
+                    $("#node-input-light").prop('checked', node.light);
+                }
             } else {
                 let message;
-                console.error(data);
                 switch (data.status) {
                     case 404:
                         message = "node not deployed";
@@ -55,9 +46,25 @@
                 RED.notify(`<strong>Error</strong>: ${message}`, "error");
             }
         } catch (error) {
-            console.error(error);
             RED.notify(`<strong>Error</strong>: ${error.message}`, "error");
         }
+    }
+
+    // 设置订阅状态更新的函数
+    function setupStateListener() {
+        RED.comms.subscribe("light-state", function(topic, data) {
+            // 查找对应的节点
+            const node = RED.nodes.node(data.id);
+            if (node) {
+                node.light = data.state;
+                RED.nodes.dirty(true);
+                RED.view.redraw();
+
+                if ($("#node-input-light").length > 0) {
+                    $("#node-input-light").prop('checked', node.light);
+                }
+            }
+        });
     }
 
     RED.nodes.registerType("light", {
@@ -75,8 +82,17 @@
         },
         button: {
             toggle: "light",
-            onclick: onClickLight,
+            onclick: function() { onClickLight(this) }
         },
+        oneditprepare: function() {
+            $("#node-input-light").prop('checked', this.light);
+        },
+        oneditsave: function () {
+            this.light = $("#node-input-light").prop('checked');
+        },
+        onpaletteadd: function() {
+            setupStateListener();
+        }
     });
 </script>
 
@@ -147,8 +163,8 @@ The node includes a button in the Node-RED editor that allows you to:
 
 The node communicates with the reCamera device using HTTP requests to:
 
--   `/camera/on` - Turn the light on
--   `/camera/off` - Turn the light off
+-   `/light/on` - Turn the light on
+-   `/light/off` - Turn the light off
 
 ## Initial State
 
