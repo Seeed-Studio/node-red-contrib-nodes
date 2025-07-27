@@ -250,6 +250,23 @@
         <input type="checkbox" id="node-input-debug" style="width:auto;">
     </div>
     <div class="form-row">
+        <label for="node-input-previewResolution"><i class="fa fa-expand"></i> Preview Resolution</label>
+        <select id="node-input-previewResolution" style="width: 60%;">
+            <option value="640x640">640x640 (Square)</option>
+            <option value="1280x720">1280x720 (HD)</option>
+            <option value="1920x1080">1920x1080 (Full HD)</option>
+        </select>
+    </div>
+    <div class="form-row">
+        <label for="node-input-previewFps"><i class="fa fa-clock-o"></i> Preview FPS</label>
+        <select id="node-input-previewFps" style="width: 60%;">
+            <option value="5">5 FPS</option>
+            <option value="10">10 FPS</option>
+            <option value="15">15 FPS</option>
+            <option value="30" selected>30 FPS</option>
+        </select>
+    </div>
+    <div class="form-row">
         <label for="node-input-trace"><i class="fa fa-toggle-on"></i> Trace</label>
         <input type="checkbox" id="node-input-trace" style="width:auto;">
     </div>
@@ -300,6 +317,8 @@
             counting: { value: false },
             classes: { value: "" },
             splitter: { value: "0,0,0,0" }, // Array for x1, y1, x2, y2
+            previewResolution: { value: "640x640" },
+            previewFps: { value: 30 },
             client: { type: "sscma", required: true, label: RED._("sscma") },
         },
         inputs: 1,
