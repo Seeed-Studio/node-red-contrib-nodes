@@ -18,6 +18,8 @@ module.exports = function (RED) {
                 .split(",")
                 .filter(Boolean)
                 .map((c) => c.trim()),
+            previewResolution: config.previewResolution,
+            previewFps: parseInt(config.previewFps),
         };
 
         node.on("input", function (msg) {
