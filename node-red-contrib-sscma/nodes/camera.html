@@ -23,10 +23,30 @@
     <div class="form-row">
         <label for="node-input-volume">
             <i class="fa fa-sliders"></i>
-            volume
+            Volume
         </label>
         <input type="range" id="node-input-volume" min="0" max="100" step="1" value="80" style="width: 60%;" />
         <span id="volume-value"></span>
+    </div>
+
+    <!-- Mirror Option -->
+    <div class="form-row">
+        <label for="node-input-mirror">
+            <i class="fa fa-pause"></i>
+            Mirror
+        </label>
+        <input type="checkbox" id="node-input-mirror" style="width:auto;" />
+        <span style="margin-left: 8px;">Horizontal flip (mirror effect)</span>
+    </div>
+
+    <!-- Flip Option -->
+    <div class="form-row">
+        <label for="node-input-flip">
+            <i class="fa fa-refresh"></i>
+            Flip
+        </label>
+        <input type="checkbox" id="node-input-flip" style="width:auto;" />
+        <span style="margin-left: 8px;">Vertical flip</span>
     </div>
 </script>
 
@@ -35,10 +55,12 @@
         category: "Vision AI",
         color: "#B29DDC",
         defaults: {
-            option: { value: 0, required: true },
+            name: { value: "" },
             client: { type: "sscma", required: true, label: RED._("sscma") },
-            audio: { value: true, required: true },
-            volume: { value: 80, required: true },
+            audio: { value: true },
+            volume: { value: 80 },
+            mirror: { value: false },  // Add mirror default
+            flip: { value: false }     // Add flip default
         },
         inputs: 1,
         outputs: 1,
@@ -50,16 +72,28 @@
             var volInput = document.getElementById("node-input-volume");
             var audioInput = document.getElementById("node-input-audio");
             var volValue = document.getElementById("volume-value");
+            var mirrorInput = document.getElementById("node-input-mirror");
+            var flipInput = document.getElementById("node-input-flip");
+
+            // Restore existing values
             audioInput.checked = this.audio;
             volInput.value = this.volume;
             volValue.textContent = volInput.value;
+            mirrorInput.checked = this.mirror !== false; // default to false
+            flipInput.checked = this.flip !== false;     // default to false
+
+            // Disable volume if audio is off
             if (!audioInput.checked) {
                 volInput.disabled = true;
                 volValue.disabled = true;
             }
+
+            // Update volume display
             volInput.addEventListener("input", function () {
                 volValue.textContent = volInput.value;
             });
+
+            // Toggle volume controls based on audio checkbox
             audioInput.addEventListener("change", function () {
                 if (audioInput.checked) {
                     volInput.disabled = false;
@@ -69,9 +103,12 @@
                     volValue.disabled = true;
                 }
             });
-        },
+
+            // Mirror and Flip don't need extra logic, just pass values
+        }
     });
 
+    // Prevent multiple instances
     RED.events.on("nodes:add", function (node) {
         const existingNodes = RED.nodes.filterNodes({ type: "camera" });
         if (existingNodes.length > 1) {
@@ -80,30 +117,37 @@
         }
     });
 </script>
+
 <script type="text/markdown" data-help-name="camera">
 This is the `camera node` for Seeed SenseCraft Model Assistant hardwares such as reCamera or Pi camera.
 
 ### Input
 
-Parse in `msg.enabled = true` to start camera, and `msg.enabled = false` to stop camera.
+- Send `msg.enabled = true` to start the camera, and `msg.enabled = false` to stop it.
+- Optional: send `msg.mirror` or `msg.flip` to dynamically change mirror/flip settings.
 
 ### Output
 
 #### AI Detection
-
--   Connect it with `model` node to achieve AI detection with different models like yolo v5, yolo v8, yolo 11 and so on.
+- Connect with a `model` node to run AI inference using models like YOLOv5, YOLOv8, YOLO11, etc.
 
 #### Preview
-
--   Connect it with `preview` node to preview what camera is capturing.
+- Connect with a `preview` node to view the camera feed.
 
 #### Streaming
-
--   Connect it with `stream` node to activate rstp stream.
+- Connect with a `stream` node to enable RTSP streaming.
 
 #### Save
+- Connect with a `save` node to capture and save images or video.
 
--   Connect it with `save` node to save the desire image or video.
+### Configuration Options
+
+- **Audio**: Enable or disable audio capture.
+- **Volume**: Adjust microphone volume (0–100).
+- **Mirror**: Horizontally flip the image (useful for selfie-style view).
+- **Flip**: Vertically flip the image.
+
+> Note: These settings can also be overridden by sending `msg.mirror` or `msg.flip` in the input message.
 
 More info: [https://github.com/Seeed-Studio/ModelAssistant](https://github.com/Seeed-Studio/ModelAssistant)
 </script>

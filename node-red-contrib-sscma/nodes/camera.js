@@ -17,6 +17,8 @@ module.exports = function (RED) {
         node.config = {
             option: n.option || 0,
             preview: false,
+            mirror: n.mirror ? true : false,
+            flip: n.flip ? true : false,
             audio: n.audio ? (isNaN(parseInt(n.volume)) ? 80 : parseInt(n.volume)) : 0,
         };
 
