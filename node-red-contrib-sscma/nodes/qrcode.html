@@ -1,0 +1,46 @@
+<script type="text/html" data-template-name="qrcode">
+    <div class="form-row">
+        <label for="node-input-client">
+            <i class="fa fa-globe"></i>
+            Client
+        </label>
+        <input type="text" id="node-input-client" />
+    </div>
+</script>
+
+<script type="text/javascript">
+    RED.nodes.registerType("qrcode", {
+        category: "Vision AI",
+        color: "#5A9FD1",
+        defaults: {
+            client: { type: "sscma", required: true, label: RED._("sscma") },
+        },
+        inputs: 1,
+        outputs: 1,
+        align: "right",
+        icon: "font-awesome/fa-qrcode",
+        label: function () {
+            return this.name || "qrcode";
+        },
+        labelStyle: function () {
+            return this.name ? "node_label_italic" : "";
+        },
+    });
+</script>
+
+
+<script type="text/markdown" data-help-name="qrcode">
+This node switches the vision system to **QR code decoding mode**.
+
+### Input
+- Any message triggers the node to request the backend (via client) to enter QR decoding mode.
+
+### Output
+- Passes the input message through unchanged.
+- The actual QR decoding is handled by the device's firmware or backend service.
+
+### Usage
+Connect this node after a trigger (e.g., button, inject, function) to switch the camera's AI function to QR decoding.
+
+> Note: This node does not decode QR codes itself. It controls the mode of the inference engine.
+</script>
