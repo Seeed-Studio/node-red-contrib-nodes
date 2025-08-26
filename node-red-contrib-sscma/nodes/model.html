@@ -246,20 +246,16 @@
         <span id="tiou-value"></span>
     </div>
     <div class="form-row">
-        <label for="node-input-debug"><i class="fa fa-picture-o"></i> Base64 image output</label>
-        <input type="checkbox" id="node-input-debug" style="width:auto;">
-    </div>
-    <div class="form-row">
-        <label for="node-input-previewResolution"><i class="fa fa-expand"></i> Preview Resolution</label>
-        <select id="node-input-previewResolution" style="width: 60%;">
+        <label for="node-input-previewResolution" style="width: 160px;"><i class="fa fa-expand"></i> Preview Resolution</label>
+        <select id="node-input-previewResolution" style="width: 50%;">
             <option value="640x640">640x640 (Square)</option>
             <option value="1280x720">1280x720 (HD)</option>
             <option value="1920x1080">1920x1080 (Full HD)</option>
         </select>
     </div>
     <div class="form-row">
-        <label for="node-input-previewFps"><i class="fa fa-clock-o"></i> Preview FPS</label>
-        <select id="node-input-previewFps" style="width: 60%;">
+        <label for="node-input-previewFps" style="width: 160px;"><i class="fa fa-clock-o"></i> Preview FPS</label>
+        <select id="node-input-previewFps" style="width: 50%;">
             <option value="5">5 FPS</option>
             <option value="10">10 FPS</option>
             <option value="15">15 FPS</option>
@@ -267,17 +263,38 @@
         </select>
     </div>
     <div class="form-row">
-        <label for="node-input-trace"><i class="fa fa-toggle-on"></i> Trace</label>
-        <input type="checkbox" id="node-input-trace" style="width:auto;">
+        <label for="node-input-debug" style="width: 160px;"><i class="fa fa-picture-o"></i> Base64 image output</label>
+        <input type="checkbox" id="node-input-debug" style="width:auto; margin-top: 0;">
     </div>
     <div class="form-row">
-        <label for="node-input-counting"><i class="fa fa-ellipsis-h"></i> Counting</label>
-        <input type="checkbox" id="node-input-counting" style="width:auto;">
+        <label for="node-input-trace" style="width: 160px;"><i class="fa fa-toggle-on"></i> Assign ID to Object</label>
+        <input type="checkbox" id="node-input-trace" style="width:auto; margin-top: 0;">
     </div>
-    <div class="form-row" id="splitter-row">
-        <label for="node-input-line"><i class="fa fa-arrows-alt"></i> Line</label>
-        <canvas id="splitter-canvas" width="100" height="100" style="border: 2px solid black;"></canvas>
-        <input type="hidden" id="node-input-splitter">
+    <div class="form-row">
+        <label for="node-input-counting" style="width: 160px;"><i class="fa fa-hashtag"></i> Count Object</label>
+        <input type="checkbox" id="node-input-counting" style="width:auto; margin-top: 0;">
+    </div>
+    <div class="form-row">
+        <label for="node-input-draw" style="width: 160px;"><i class="fa fa-arrows-alt"></i> Draw line for section</label>
+        <input type="checkbox" id="node-input-draw" style="width:auto; margin-top: 0;">
+        <div id="splitter-row" style="display:none; align-items:center; margin-left: 20px; margin-top: 8px;">
+            <canvas id="splitter-canvas" width="100" height="100" style="border: 1px solid black;"></canvas>
+            <div id="splitter-legend" style="display: inline-flex; flex-direction: column; gap: 10px; margin-left: 24px;">
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <div style="width:24px; height:16px; background:#cfe6a8; border:1px solid #ccc;"></div>
+                    <span>Area A</span>
+                </div>
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <div style="width:24px; height:16px; background:#f3f5f6; border:1px solid #ccc;"></div>
+                    <span>Area B</span>
+                </div>
+                <button id="btn-reset-line" style="display:inline-flex; align-items:center; gap:6px; background:#c82333; color:#fff; border:none; border-radius:4px; padding:6px 10px; cursor:pointer;">
+                    <i class="fa fa-undo"></i>
+                    <span>Reset Line</span>
+                </button>
+            </div>
+            <input type="hidden" id="node-input-splitter">
+        </div>
     </div>
     <!-- Dynamic class inputs with numbering -->
     <div class="form-row">
@@ -315,6 +332,7 @@
             debug: { value: false },
             trace: { value: false },
             counting: { value: false },
+            draw: { value: false },
             classes: { value: "" },
             splitter: { value: "0,0,0,0" }, // Array for x1, y1, x2, y2
             previewResolution: { value: "640x640" },
@@ -337,6 +355,7 @@
             const debugInput = document.getElementById("node-input-debug");
             const traceInput = document.getElementById("node-input-trace");
             const countingInput = document.getElementById("node-input-counting");
+            const drawInput = document.getElementById("node-input-draw");
             const splitterCanvas = document.getElementById("splitter-canvas");
             const tscoreInput = document.getElementById("node-input-tscore");
             const tiouInput = document.getElementById("node-input-tiou");
@@ -401,9 +420,79 @@
                 RED.nodes.dirty(true);
             });
 
-            let isDrawing = false;
-            let startX = 0,
-                startY = 0;
+            const HANDLE_RADIUS = 4;
+            let draggingHandle = null; // 'p1' | 'p2' | 'line' | null
+            // 默认：P1 顶部中点，P2 底部中点
+            let p1 = { x: Math.round(splitterCanvas.width / 2), y: 0 };
+            let p2 = { x: Math.round(splitterCanvas.width / 2), y: splitterCanvas.height };
+            // 记录当前扩展线段与线拖拽状态
+            let currentExtended = null;
+            let lineDragStart = null;
+            let lineStartCenter = null;
+            let lineDirAtDragStart = null; // 指向 p2->p1 的方向
+
+            function clamp(val, min, max) {
+                return Math.max(min, Math.min(max, val));
+            }
+
+            function distance(x1, y1, x2, y2) {
+                const dx = x2 - x1;
+                const dy = y2 - y1;
+                return Math.sqrt(dx * dx + dy * dy);
+            }
+
+            // 点到线段的最短距离
+            function pointToSegmentDistance(px, py, x1, y1, x2, y2) {
+                const vx = x2 - x1;
+                const vy = y2 - y1;
+                const wx = px - x1;
+                const wy = py - y1;
+                const len2 = vx * vx + vy * vy || 1;
+                let t = (wx * vx + wy * vy) / len2;
+                t = Math.max(0, Math.min(1, t));
+                const projx = x1 + t * vx;
+                const projy = y1 + t * vy;
+                return distance(px, py, projx, projy);
+            }
+
+            function normalize(dx, dy) {
+                const len = Math.max(1, Math.sqrt(dx * dx + dy * dy));
+                return { x: dx / len, y: dy / len };
+            }
+
+            function snapToBorder(x, y, w, h) {
+                const distances = [
+                    { edge: "left", d: Math.abs(x - 0) },
+                    { edge: "right", d: Math.abs(x - w) },
+                    { edge: "top", d: Math.abs(y - 0) },
+                    { edge: "bottom", d: Math.abs(y - h) },
+                ];
+                distances.sort((a, b) => a.d - b.d);
+                const nearest = distances[0].edge;
+                if (nearest === "left") return { x: 0, y: clamp(y, 0, h) };
+                if (nearest === "right") return { x: w, y: clamp(y, 0, h) };
+                if (nearest === "top") return { x: clamp(x, 0, w), y: 0 };
+                return { x: clamp(x, 0, w), y: h };
+            }
+
+            function initializeHandlesFromInput() {
+                const parts = (splitterInput.value || "").split(",").map(Number);
+                if (parts.length === 4 && parts.some((n) => !isNaN(n) && n !== 0)) {
+                    // 存储顺序定义为：x1,y1 是 p1（顶部），x2,y2 是 p2（底部）
+                    p1 = snapToBorder(
+                        clamp(parts[0], 0, splitterCanvas.width),
+                        clamp(parts[1], 0, splitterCanvas.height),
+                        splitterCanvas.width,
+                        splitterCanvas.height,
+                    );
+                    p2 = snapToBorder(
+                        clamp(parts[2], 0, splitterCanvas.width),
+                        clamp(parts[3], 0, splitterCanvas.height),
+                        splitterCanvas.width,
+                        splitterCanvas.height,
+                    );
+                }
+            }
 
             tscoreValue.innerText = tscoreInput.value;
             tiouValue.innerText = tiouInput.value;
@@ -414,6 +503,11 @@
                 if (!traceInput.checked) {
                     countingInput.checked = false;
                 }
+                // Enable draw only when counting is enabled
+                drawInput.disabled = !countingInput.checked;
+                if (!countingInput.checked) {
+                    drawInput.checked = false;
+                }
                 updateCanvas();
             }
 
@@ -422,105 +516,271 @@
                 display.innerText = input.value;
             }
 
-            // Update canvas for line drawing
-            function updateCanvas() {
-                if (!countingInput.checked) {
-                    document.getElementById("splitter-row").style.display = "none";
-                } else {
-                    document.getElementById("splitter-row").style.display = "block";
-                    const line = splitterInput.value.split(",").map(Number);
-                    const canvasWidth = splitterCanvas.width;
-                    const canvasHeight = splitterCanvas.height;
-                    const ctx = splitterCanvas.getContext("2d");
-                    ctx.clearRect(0, 0, canvasWidth, canvasHeight);
-                    ctx.beginPath();
-                    ctx.moveTo(line[0], line[1]);
-                    ctx.lineTo(line[2], line[3]);
-                    ctx.stroke();
+            // 构造“左侧半平面与画布矩形的交集”多边形
+            function buildLeftHalfPlanePolygon(extended, canvasWidth, canvasHeight) {
+                const dx = extended.x2 - extended.x1;
+                const dy = extended.y2 - extended.y1;
+                const isLeft = (q) => dx * (q.y - extended.y1) - dy * (q.x - extended.x1) > 0;
+
+                const corners = [
+                    { x: 0, y: 0 },
+                    { x: canvasWidth, y: 0 },
+                    { x: canvasWidth, y: canvasHeight },
+                    { x: 0, y: canvasHeight },
+                ];
+
+                // 选取在左侧半平面的四个角
+                const pts = corners.filter(isLeft);
+                // 加入直线与矩形的交点（extended 已给出）
+                pts.push({ x: extended.x1, y: extended.y1 });
+                pts.push({ x: extended.x2, y: extended.y2 });
+
+                // 去除可能重复点
+                const uniq = [];
+                const keySet = new Set();
+                for (const pt of pts) {
+                    const k = `${Math.round(pt.x)}_${Math.round(pt.y)}`;
+                    if (!keySet.has(k)) {
+                        keySet.add(k);
+                        uniq.push(pt);
+                    }
                 }
+
+                // 按极角排序为凸多边形
+                const cx = uniq.reduce((s, p) => s + p.x, 0) / uniq.length;
+                const cy = uniq.reduce((s, p) => s + p.y, 0) / uniq.length;
+                uniq.sort((a, b) => Math.atan2(a.y - cy, a.x - cx) - Math.atan2(b.y - cy, b.x - cx));
+                return uniq;
             }
 
-            // Extend line to canvas edges
-            function extendLineToEdges(x1, y1, x2, y2, canvasWidth, canvasHeight) {
-                const dx = x2 - x1;
-                const dy = y2 - y1;
+            // Update canvas for line drawing
+            function updateCanvas() {
+                if (!drawInput.checked) {
+                    document.getElementById("splitter-row").style.display = "none";
+                    return;
+                }
+                document.getElementById("splitter-row").style.display = "flex";
+                const canvasWidth = splitterCanvas.width;
+                const canvasHeight = splitterCanvas.height;
+                const ctx = splitterCanvas.getContext("2d");
+                ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+                // 先填充 B 区背景色
+                ctx.fillStyle = "#f3f5f6";
+                ctx.fillRect(0, 0, canvasWidth, canvasHeight);
 
-                if (dx === 0) {
-                    return { x1: x1, y1: 0, x2: x2, y2: canvasHeight };
-                } else if (dy === 0) {
-                    return { x1: 0, y1: y1, x2: canvasWidth, y2: y2 };
+                // Extend line to edges in direction p2 -> p1 and store to hidden input
+                const extended = extendLineToEdges(p2.x, p2.y, p1.x, p1.y, canvasWidth, canvasHeight);
+                currentExtended = extended;
+                // 写回隐藏值为原始端点顺序：p1 在前，p2 在后
+                splitterInput.value = [Math.round(p1.x), Math.round(p1.y), Math.round(p2.x), Math.round(p2.y)].join(",");
+
+                // 填充 A 区：p2 -> p1 的左侧半平面与矩形的交集
+                const poly = buildLeftHalfPlanePolygon(extended, canvasWidth, canvasHeight);
+                if (poly.length >= 3) {
+                    ctx.save();
+                    ctx.beginPath();
+                    ctx.moveTo(poly[0].x, poly[0].y);
+                    for (let i = 1; i < poly.length; i++) {
+                        ctx.lineTo(poly[i].x, poly[i].y);
+                    }
+                    ctx.closePath();
+                    ctx.clip();
+                    ctx.fillStyle = "#cfe6a8";
+                    ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+                    ctx.restore();
                 }
 
-                const slope = dy / dx;
-                const intercept = y1 - slope * x1;
+                // Draw outer border
+                ctx.strokeStyle = "#000";
+                ctx.lineWidth = 2;
+                ctx.strokeRect(0, 0, canvasWidth, canvasHeight);
 
+                // Draw dividing line
+                ctx.beginPath();
+                ctx.moveTo(extended.x1, extended.y1);
+                ctx.lineTo(extended.x2, extended.y2);
+                ctx.strokeStyle = "#333";
+                ctx.lineWidth = 2;
+                ctx.stroke();
+
+                // Draw draggable handles
+                ctx.fillStyle = "#fff";
+                ctx.strokeStyle = "#333";
+                ctx.lineWidth = 1.5;
+                [p1, p2].forEach((pt) => {
+                    ctx.beginPath();
+                    ctx.arc(pt.x, pt.y, HANDLE_RADIUS, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.stroke();
+                });
+            }
+
+            // Extend line to canvas edges，保持方向：从 (x1,y1)=p2 指向 (x2,y2)=p1
+            function extendLineToEdges(x1, y1, x2, y2, canvasWidth, canvasHeight) {
+                const dirx = x2 - x1;
+                const diry = y2 - y1;
+                const eps = 1e-6;
+
+                // 垂直或水平退化处理
+                if (Math.abs(dirx) < eps && Math.abs(diry) < eps) {
+                    return { x1: Math.round(x1), y1: Math.round(y1), x2: Math.round(x2), y2: Math.round(y2) };
+                }
+
+                const hits = [];
+                // 与 x=0 和 x=canvasWidth 相交
+                if (Math.abs(dirx) >= eps) {
+                    let t = (0 - x1) / dirx;
+                    let y = y1 + t * diry;
+                    if (y >= -eps && y <= canvasHeight + eps) hits.push({ t, x: 0, y });
+                    t = (canvasWidth - x1) / dirx;
+                    y = y1 + t * diry;
+                    if (y >= -eps && y <= canvasHeight + eps) hits.push({ t, x: canvasWidth, y });
+                }
+                // 与 y=0 和 y=canvasHeight 相交
+                if (Math.abs(diry) >= eps) {
+                    let t = (0 - y1) / diry;
+                    let x = x1 + t * dirx;
+                    if (x >= -eps && x <= canvasWidth + eps) hits.push({ t, x, y: 0 });
+                    t = (canvasHeight - y1) / diry;
+                    x = x1 + t * dirx;
+                    if (x >= -eps && x <= canvasWidth + eps) hits.push({ t, x, y: canvasHeight });
+                }
+
+                // 去重并按 t 排序，取最小和最大 t
+                const uniq = [];
+                const keySet = new Set();
+                for (const h of hits) {
+                    const k = `${Math.round(h.x)}_${Math.round(h.y)}`;
+                    if (!keySet.has(k)) {
+                        keySet.add(k);
+                        uniq.push(h);
+                    }
+                }
+                uniq.sort((a, b) => a.t - b.t);
+
+                if (uniq.length >= 2) {
+                    const a = uniq[0];
+                    const b = uniq[uniq.length - 1];
+                    return { x1: Math.round(a.x), y1: Math.round(a.y), x2: Math.round(b.x), y2: Math.round(b.y) };
+                }
+
+                // 兜底：如果只得到一个点或异常，退回旧逻辑近似
+                if (Math.abs(dirx) < eps) {
+                    return { x1: Math.round(x1), y1: 0, x2: Math.round(x2), y2: canvasHeight };
+                }
+                if (Math.abs(diry) < eps) {
+                    return { x1: 0, y1: Math.round(y1), x2: canvasWidth, y2: Math.round(y2) };
+                }
+                const slope = diry / dirx;
+                const intercept = y1 - slope * x1;
                 let xStart = 0;
                 let yStart = intercept;
-
                 if (yStart < 0 || yStart > canvasHeight) {
                     yStart = yStart < 0 ? 0 : canvasHeight;
                     xStart = (yStart - intercept) / slope;
                 }
-
                 let xEnd = canvasWidth;
                 let yEnd = slope * xEnd + intercept;
-
                 if (yEnd < 0 || yEnd > canvasHeight) {
                     yEnd = yEnd < 0 ? 0 : canvasHeight;
                     xEnd = (yEnd - intercept) / slope;
                 }
-
-                return {
-                    x1: parseInt(xStart),
-                    y1: parseInt(yStart),
-                    x2: parseInt(xEnd),
-                    y2: parseInt(yEnd),
-                };
+                return { x1: Math.round(xStart), y1: Math.round(yStart), x2: Math.round(xEnd), y2: Math.round(yEnd) };
             }
 
             splitterCanvas.addEventListener("mousedown", function (e) {
-                isDrawing = true;
                 const rect = splitterCanvas.getBoundingClientRect();
-                startX = e.clientX - rect.left;
-                startY = e.clientY - rect.top;
-                splitter = [startX, startY, 0, 0]; // Store start coordinates in the array
-            });
-
-            splitterCanvas.addEventListener("mouseup", function (e) {
-                if (isDrawing) {
-                    isDrawing = false;
-                    const rect = splitterCanvas.getBoundingClientRect();
-                    const endX = e.clientX - rect.left;
-                    const endY = e.clientY - rect.top;
-                    splitter[2] = endX; // Update end coordinates in the array
-                    splitter[3] = endY;
-
-                    const canvasWidth = splitterCanvas.width;
-                    const canvasHeight = splitterCanvas.height;
-                    const extendedLine = extendLineToEdges(startX, startY, endX, endY, canvasWidth, canvasHeight);
-
-                    splitter = [+extendedLine.x1, +extendedLine.y1, +extendedLine.x2, +extendedLine.y2]; // Update array with extended coordinates
-
-                    // Reflect array in hidden input
-                    splitterInput.value = splitter;
-
-                    const ctx = splitterCanvas.getContext("2d");
-                    ctx.clearRect(0, 0, canvasWidth, canvasHeight);
-                    ctx.beginPath();
-                    ctx.moveTo(extendedLine.x1, extendedLine.y1);
-                    ctx.lineTo(extendedLine.x2, extendedLine.y2);
-                    ctx.stroke();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+                if (distance(x, y, p1.x, p1.y) <= HANDLE_RADIUS + 3) {
+                    draggingHandle = "p1";
+                } else if (distance(x, y, p2.x, p2.y) <= HANDLE_RADIUS + 3) {
+                    draggingHandle = "p2";
+                } else {
+                    // 命中线本体则整体拖拽
+                    if (
+                        currentExtended &&
+                        pointToSegmentDistance(x, y, currentExtended.x1, currentExtended.y1, currentExtended.x2, currentExtended.y2) <= HANDLE_RADIUS + 3
+                    ) {
+                        draggingHandle = "line";
+                        lineDragStart = { x, y };
+                        lineStartCenter = { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 };
+                        lineDirAtDragStart = normalize(p1.x - p2.x, p1.y - p2.y); // 指向 p2->p1
+                    } else {
+                        draggingHandle = null;
+                    }
                 }
             });
 
+            splitterCanvas.addEventListener("mousemove", function (e) {
+                if (!draggingHandle) return;
+                const rect = splitterCanvas.getBoundingClientRect();
+                const rawX = e.clientX - rect.left;
+                const rawY = e.clientY - rect.top;
+                if (draggingHandle === "line") {
+                    const dx = rawX - lineDragStart.x;
+                    const dy = rawY - lineDragStart.y;
+                    const newCenter = { x: lineStartCenter.x + dx, y: lineStartCenter.y + dy };
+                    const dir = lineDirAtDragStart || normalize(p1.x - p2.x, p1.y - p2.y);
+                    // 使用较长的基准向量，确保扩展后方向稳定（p2->p1）
+                    const scale = Math.max(splitterCanvas.width, splitterCanvas.height);
+                    const baseP2 = { x: newCenter.x - dir.x * scale, y: newCenter.y - dir.y * scale };
+                    const baseP1 = { x: newCenter.x + dir.x * scale, y: newCenter.y + dir.y * scale };
+                    const ext = extendLineToEdges(baseP2.x, baseP2.y, baseP1.x, baseP1.y, splitterCanvas.width, splitterCanvas.height);
+                    // 保持方向为 p2 -> p1
+                    p2 = { x: ext.x1, y: ext.y1 };
+                    p1 = { x: ext.x2, y: ext.y2 };
+                } else {
+                    const snapped = snapToBorder(rawX, rawY, splitterCanvas.width, splitterCanvas.height);
+                    if (draggingHandle === "p1") {
+                        p1 = snapped;
+                    } else if (draggingHandle === "p2") {
+                        p2 = snapped;
+                    }
+                }
+                updateCanvas();
+            });
+
+            splitterCanvas.addEventListener("mouseup", function () {
+                draggingHandle = null;
+                lineDragStart = null;
+                lineStartCenter = null;
+                lineDirAtDragStart = null;
+            });
+            splitterCanvas.addEventListener("mouseleave", function () {
+                draggingHandle = null;
+                lineDragStart = null;
+                lineStartCenter = null;
+                lineDirAtDragStart = null;
+            });
+
+            // initialize draw checkbox and canvas visibility
+            drawInput.checked = false;
+            drawInput.disabled = !countingInput.checked;
+            initializeHandlesFromInput();
             updateCanvas();
+
+            // Reset line to initial position: p1 top-center, p2 bottom-center
+            const resetBtn = document.getElementById("btn-reset-line");
+            if (resetBtn) {
+                resetBtn.addEventListener("click", function () {
+                    p1 = { x: Math.round(splitterCanvas.width / 2), y: 0 };
+                    p2 = { x: Math.round(splitterCanvas.width / 2), y: splitterCanvas.height };
+                    updateCanvas();
+                });
+            }
 
             updateCountingState();
 
             traceInput.addEventListener("change", updateCountingState);
 
             countingInput.addEventListener("change", function () {
-                updateCanvas();
+                drawInput.checked = false;
+                drawInput.disabled = !countingInput.checked;
+            });
+
+            drawInput.addEventListener("change", function () {
+                updateCountingState();
             });
 
             tscoreInput.addEventListener("input", function () {
@@ -839,16 +1099,19 @@
 This is the `model node` for Seeed SenseCraft Model Assistant such as reCamera or Pi camera.
 
 #### Supported Model
+
 Freely change models like yolo v5, yolo v8, yolo 11 and so on. You can also enjoy the models from SenseCraft to find the perfect fit for you. If you would like to convert your own model to cviformat for reCamera, please visit our [Wiki instruction](https://wiki.seeedstudio.com/recamera_model_conversion/).
 
 ### Inputs
-- **payload (`buffer`)**: Input from the `camera` node
+
+-   **payload (`buffer`)**: Input from the `camera` node
 
 ### Parameters
-- **Base64 Image Output Checkbox**: This checkbox is used to determine whether the base64 image code should be output along with other parameters.
-- **Trace Checkbox**: Enables the tracking mode. When enabled, each detected object will be assigned a unique ID.
-- **Counting Checkbox**: Enables the counting mode. When enabled, the node will output counting information to the console.
-- **Splitter Field**: Used to set the counting line. Draw a line within the box to count the number of objects crossing it.
+
+-   **Base64 Image Output Checkbox**: This checkbox is used to determine whether the base64 image code should be output along with other parameters.
+-   **Trace Checkbox**: Enables the tracking mode. When enabled, each detected object will be assigned a unique ID.
+-   **Counting Checkbox**: Enables the counting mode. When enabled, the node will output counting information to the console.
+-   **Splitter Field**: Used to set the counting line. Draw a line within the box to count the number of objects crossing it.
 
 ### Output Example
 
@@ -880,5 +1143,4 @@ Wire the model node to a debug node to view the output. Here is an example outpu
     ]
 }
 ```
-    
 </script>

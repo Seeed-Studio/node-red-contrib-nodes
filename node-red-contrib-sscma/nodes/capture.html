@@ -1,0 +1,151 @@
+<script type="text/html" data-template-name="capture">
+    <div class="form-row">
+        <label for="node-input-name">
+            <i class="fa fa-tag"></i>
+            Label
+        </label>
+        <input type="text" id="node-input-name" />
+    </div>
+    <div class="form-row">
+        <label for="node-input-client">
+            <i class="fa fa-globe"></i>
+            Client
+        </label>
+        <input type="text" id="node-input-client" />
+    </div>
+    <div class="form-row">
+        <label for="node-input-storage">
+            <i class="fa fa-folder"></i>
+            Storage
+        </label>
+        <select id="node-input-storage">
+            <option value="local" selected>Local(/userdata/Images)</option>
+            <option value="external">External (SD Card)</option>
+        </select>
+    </div>
+    <div class="form-row" style="display: flex;">
+        <label>
+            <i class="fa fa-toggle-on"></i>
+            <span id="start-label">Save photo</span>
+        </label>
+        <div>
+            <div style="display: flex; align-items: flex-start; margin-bottom: 5px;">
+                <input style="width: auto; margin-right: 10px;" type="radio" name="node-input-start-mode" value="immediate" />
+                <div>
+                    <span id="start-radio-immediate-label">Capture at certain frequency</span>
+                    <div id="image-interval" style="margin-top: 5px; color: #666; display: flex; align-items: center;">
+                        <span style="margin-right: 8px;">Take 1 photo every</span>
+                        <select id="node-input-interval" style="width: 50px;">
+                            <option value="2">2</option>
+                            <option value="5" selected>5</option>
+                            <option value="10">10</option>
+                            <option value="30">30</option>
+                        </select>
+                        <select id="node-input-timeUnit" style="width: auto; margin-left: 5px;">
+                            <option value="0">Seconds</option>
+                            <option value="1" selected>Minutes</option>
+                            <option value="2">Hours</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <div style="display: flex;">
+                <input style="width: auto; margin: 0 10px 0 0;" type="radio" name="node-input-start-mode" value="msg" />
+                <span id="start-radio-msg-label">Control by msg.enable</span>
+            </div>
+            <div id="start-msg-tips" style="margin-left: 24px; color: #888;">Take 1 photo when msg.enable is true</div>
+        </div>
+    </div>
+    <div class="form-row" id="manual-mode-info" style="display: block;">
+        <div class="form-tips">
+            <i class="fa fa-info-circle"></i>
+            You can also send msg.payload = "capture" to take one photo
+        </div>
+    </div>
+</script>
+<script type="text/javascript">
+    RED.nodes.registerType("capture", {
+        category: "Vision AI",
+        color: "#D9A066",
+        defaults: {
+            name: { value: this.name || "capture image" },
+            interval: { value: "5" },
+            timeUnit: { value: "1" },
+            storage: { value: "local" },
+            startMode: { value: "immediate" },
+            client: { type: "sscma", required: true, label: RED._("sscma") },
+        },
+        inputs: 1,
+        outputs: 0,
+        icon: "font-awesome/fa-camera",
+        label: function () {
+            return this.name || "capture";
+        },
+        oneditprepare: function () {
+            var defaultImageName = "capture image";
+            var $nameInput = $("#node-input-name");
+            var userModifiedName = false;
+            $nameInput.on("input", function () {
+                var v = $(this).val();
+                userModifiedName = !(v === "" || v === defaultImageName);
+            });
+            if (!userModifiedName && $nameInput.val() === "") {
+                $nameInput.val(defaultImageName);
+            }
+
+            function updateIntervalControlsEnablement() {
+                var controlByMsg = $("input[name='node-input-start-mode'][value='msg']").is(":checked");
+                $("#node-input-interval").prop("disabled", controlByMsg);
+                $("#node-input-timeUnit").prop("disabled", controlByMsg);
+            }
+            $("input[name='node-input-start-mode']").on("change", function () {
+                updateIntervalControlsEnablement();
+            });
+            updateIntervalControlsEnablement();
+        },
+        oneditcancel: function () {
+            $(`input[name="node-input-start-mode"][value="${this.startMode}"]`).prop("checked", true);
+        },
+        oneditsave: function () {
+            this.startMode = $("input[name='node-input-start-mode']:checked").val();
+        },
+    });
+    RED.events.on("nodes:add", function (node) {
+        const existingNodes = RED.nodes.filterNodes({ type: "capture" });
+        if (existingNodes.length > 1) {
+            RED.notify("This node can only be instantiated once.", "error");
+            RED.nodes.remove(node.id);
+        }
+    });
+</script>
+<script type="text/markdown" data-help-name="capture">
+This is the `Capture Image` node for Seeed SenseCraft Model Assistant such as reCamera or Pi camera.
+
+### Input
+
+Wire the camera node to the capture image node to enable capturing.
+
+### Parameters
+
+#### Configuration
+
+Please select sscma for the client.
+
+#### Storage
+
+-   **Local**: path: `recamera/userdata/IMAGE`
+-   **External**: Stored in SD card.
+
+#### Save photo
+
+-   **Capture at certain frequency**: Take one photo periodically based on interval
+-   **Control by msg.enable**: Take one photo when `msg.enable` is true
+
+#### Interval
+
+Time interval between saved images. You can change units in the dropdown menu.
+
+#### Manual capture
+
+Send a message with `msg.payload = "capture"` to take one photo.
+</script>

@@ -18,7 +18,7 @@
             <i class="fa fa-microphone"></i>
             Audio
         </label>
-        <input type="checkbox" id="node-input-audio" style="width:auto;" />
+        <input type="checkbox" id="node-input-audio" style="width:auto; margin-top: 0;" />
     </div>
     <div class="form-row">
         <label for="node-input-volume">
@@ -29,23 +29,46 @@
         <span id="volume-value"></span>
     </div>
 
-    <!-- Mirror Option -->
+    <div class="form-row">
+        <label for="node-input-options">
+            <i class="fa fa-expand"></i>
+            Resolution
+        </label>
+        <select id="node-input-options" style="width: 50%;">
+            <option value="2">640x480 (480p)</option>
+            <option value="1">1280x720 (720p)</option>
+            <option value="0" selected>1920x1080 (1080p)</option>
+        </select>
+    </div>
+
+    <div class="form-row">
+        <label for="node-input-fps">
+            <i class="fa fa-clock-o"></i>
+            FPS
+        </label>
+        <select id="node-input-fps" style="width: 50%;">
+            <option value="5">5 FPS</option>
+            <option value="10">10 FPS</option>
+            <option value="15">15 FPS</option>
+            <option value="30" selected>30 FPS</option>
+        </select>
+    </div>
+
     <div class="form-row">
         <label for="node-input-mirror">
             <i class="fa fa-pause"></i>
             Mirror
         </label>
-        <input type="checkbox" id="node-input-mirror" style="width:auto;" />
+        <input type="checkbox" id="node-input-mirror" style="width:auto; margin-top: 0;" />
         <span style="margin-left: 8px;">Horizontal flip (mirror effect)</span>
     </div>
 
-    <!-- Flip Option -->
     <div class="form-row">
         <label for="node-input-flip">
             <i class="fa fa-refresh"></i>
             Flip
         </label>
-        <input type="checkbox" id="node-input-flip" style="width:auto;" />
+        <input type="checkbox" id="node-input-flip" style="width:auto; margin-top: 0;" />
         <span style="margin-left: 8px;">Vertical flip</span>
     </div>
 </script>
@@ -59,8 +82,10 @@
             client: { type: "sscma", required: true, label: RED._("sscma") },
             audio: { value: true },
             volume: { value: 80 },
-            mirror: { value: false },  // Add mirror default
-            flip: { value: false }     // Add flip default
+            options: { value: 0 },
+            fps: { value: 30 },
+            mirror: { value: false }, // Add mirror default
+            flip: { value: false }, // Add flip default
         },
         inputs: 1,
         outputs: 1,
@@ -74,13 +99,18 @@
             var volValue = document.getElementById("volume-value");
             var mirrorInput = document.getElementById("node-input-mirror");
             var flipInput = document.getElementById("node-input-flip");
+            var optionsInput = document.getElementById("node-input-options");
+            var fpsInput = document.getElementById("node-input-fps");
 
             // Restore existing values
             audioInput.checked = this.audio;
             volInput.value = this.volume;
             volValue.textContent = volInput.value;
             mirrorInput.checked = this.mirror !== false; // default to false
-            flipInput.checked = this.flip !== false;     // default to false
+            flipInput.checked = this.flip !== false; // default to false
+
+            optionsInput.value = this.options;
+            fpsInput.value = this.fps;
 
             // Disable volume if audio is off
             if (!audioInput.checked) {
@@ -105,7 +135,7 @@
             });
 
             // Mirror and Flip don't need extra logic, just pass values
-        }
+        },
     });
 
     // Prevent multiple instances
@@ -123,29 +153,35 @@ This is the `camera node` for Seeed SenseCraft Model Assistant hardwares such as
 
 ### Input
 
-- Send `msg.enabled = true` to start the camera, and `msg.enabled = false` to stop it.
-- Optional: send `msg.mirror` or `msg.flip` to dynamically change mirror/flip settings.
+-   Send `msg.enabled = true` to start the camera, and `msg.enabled = false` to stop it.
+-   Optional: send `msg.mirror` or `msg.flip` to dynamically change mirror/flip settings.
 
 ### Output
 
 #### AI Detection
-- Connect with a `model` node to run AI inference using models like YOLOv5, YOLOv8, YOLO11, etc.
+
+-   Connect with a `model` node to run AI inference using models like YOLOv5, YOLOv8, YOLO11, etc.
 
 #### Preview
-- Connect with a `preview` node to view the camera feed.
+
+-   Connect with a `preview` node to view the camera feed.
 
 #### Streaming
-- Connect with a `stream` node to enable RTSP streaming.
+
+-   Connect with a `stream` node to enable RTSP streaming.
 
 #### Save
-- Connect with a `save` node to capture and save images or video.
+
+-   Connect with a `save` node to capture and save images or video.
 
 ### Configuration Options
 
-- **Audio**: Enable or disable audio capture.
-- **Volume**: Adjust microphone volume (0–100).
-- **Mirror**: Horizontally flip the image (useful for selfie-style view).
-- **Flip**: Vertically flip the image.
+-   **Audio**: Enable or disable audio capture.
+-   **Volume**: Adjust microphone volume (0–100).
+-   **Resolution**: 1080p/720p/480p。
+-   **FPS**: 帧率，可选 5/10/15/30，与 `model` 预览 FPS 范围一致。
+-   **Mirror**: Horizontally flip the image (useful for selfie-style view).
+-   **Flip**: Vertically flip the image.
 
 > Note: These settings can also be overridden by sending `msg.mirror` or `msg.flip` in the input message.
 

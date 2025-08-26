@@ -14,8 +14,10 @@ module.exports = function (RED) {
         RED.nodes.createNode(this, n);
         const node = this;
         node.client = RED.nodes.getNode(n.client);
+        
         node.config = {
-            option: n.option || 0,
+            options: parseInt(n.options),
+            fps: parseInt(n.fps),
             preview: false,
             mirror: n.mirror ? true : false,
             flip: n.flip ? true : false,

@@ -1,5 +1,4 @@
 <script type="text/html" data-template-name="save">
-    <!-- Existing configurations -->
     <div class="form-row">
         <label for="node-input-name">
             <i class="fa fa-tag"></i>
@@ -14,16 +13,7 @@
         </label>
         <input type="text" id="node-input-client" />
     </div>
-    <div class="form-row">
-        <label for="node-input-saveMode">
-            <i class="fa fa-file"></i>
-            Save Mode
-        </label>
-        <select id="node-input-saveMode">
-            <option value="video" selected>Video (.mov)</option>
-            <option value="image">Image (.jpg) - 1920x1080</option>
-        </select>
-    </div>
+
     <div class="form-row">
         <label for="node-input-storage">
             <i class="fa fa-folder"></i>
@@ -34,19 +24,12 @@
             <option value="external">External (SD Card)</option>
         </select>
     </div>
-    <div class="form-row">
-        <label for="node-input-start">
-            <i class="fa fa-toggle-on"></i>
-            Start
-        </label>
-        <input type="checkbox" id="node-input-start" style="width:auto;"/>
-    </div>
-    <div class="form-row">
+    <div class="form-row" id="slice-row">
         <label for="node-input-slice">
             <i class="fa fa-clock-o"></i>
             <span id="slice-label">Slice</span>
         </label>
-        <select id="node-input-slice" style="width: auto;">
+        <select id="node-input-slice" style="width: 60px;">
             <option value="2">2</option>
             <option value="5" selected>5</option>
             <option value="10">10</option>
@@ -58,40 +41,53 @@
             <option value="2">Hours</option>
         </select>
     </div>
-    <div class="form-row">
+    <div class="form-row" id="duration-row">
         <label for="node-input-duration">
             <i class="fa fa-hourglass-half"></i>
             Duration
         </label>
-        <input type="number" id="node-input-duration" min="0" placeholder="Enter 0 for manual mode or a value" style="width: 50%;" />
+        <input type="number" id="node-input-duration" min="0" placeholder="Enter 0 for manual mode or a value" style="width: 60px;" />
         <select id="node-input-durationUnit" style="width: auto; margin-left: 5px;">
             <option value="0">Seconds</option>
             <option value="1" selected>Minutes</option>
             <option value="2">Hours</option>
         </select>
     </div>
-    <div class="form-row" id="manual-mode-info" style="display: none;">
-        <label style="color: #666; font-style: italic;">
-            <i class="fa fa-info-circle"></i>
-            Manual Mode: Send message with payload="capture" to capture an image
-        </label>
-    </div>
 
+    <div class="form-row" style="display: flex;">
+        <label>
+            <i class="fa fa-toggle-on"></i>
+            <span id="start-label">Start</span>
+        </label>
+        <div>
+            <div style="display: flex; margin-bottom: 5px;">
+                <input style="width: auto; margin: 0 10px 0 0;" type="radio" name="node-input-start-mode" value="immediate" />
+                <span id="start-radio-immediate-label">Start immediately when deploy</span>
+            </div>
+            <div style="display: flex;">
+                <input style="width: auto; margin: 0 10px 0 0;" type="radio" name="node-input-start-mode" value="msg" />
+                <span id="start-radio-msg-label">Control by msg.enable</span>
+            </div>
+            <div id="start-msg-tips" style="margin-left: 24px; color: #888;">
+                When msg.enable is true, the recording start.
+                <br />
+                When msg.enable is false, the recording stop.
+            </div>
+        </div>
+    </div>
 </script>
 <script type="text/javascript">
     RED.nodes.registerType("save", {
         category: "Vision AI",
         color: "#D9A066",
         defaults: {
-            name: { value: this.name || "save" },
-            saveMode: { value: "video" },
+            name: { value: this.name || "save video" },
             slice: { value: "5" },
             timeUnit: { value: "1" },
             storage: { value: "local" },
             duration: { value: 0 }, // Default duration (0 means indefinite)
             durationUnit: { value: "1" }, // Default duration unit (1 means minutes)
-            start: { value: true },
-
+            startMode: { value: "immediate" }, // node start Mode
             client: { type: "sscma", required: true, label: RED._("sscma") },
         },
         inputs: 1,
@@ -101,39 +97,19 @@
             return this.name || "save";
         },
         oneditprepare: function () {
-            // Handle save mode change
-            $("#node-input-saveMode").on("change", function() {
-                var saveMode = $(this).val();
-                if (saveMode === "image") {
-                    $("#slice-label").text("Interval");
-                } else {
-                    $("#slice-label").text("Slice");
-                }
-                updateManualModeInfo();
-            });
-            
-            // Handle duration change for manual mode info
-            $("#node-input-duration").on("input", function() {
-                updateManualModeInfo();
-            });
-            
-            function updateManualModeInfo() {
-                var saveMode = $("#node-input-saveMode").val();
-                var duration = $("#node-input-duration").val();
-                if (saveMode === "image" && duration === "0") {
-                    $("#manual-mode-info").show();
-                } else {
-                    $("#manual-mode-info").hide();
-                }
+            var defaultVideoName = "save video";
+            var $nameInput = $("#node-input-name");
+            if (!$nameInput.val() || $nameInput.val() === "") {
+                $nameInput.val(defaultVideoName);
             }
-            
-            // Trigger initial state
-            $("#node-input-saveMode").trigger("change");
-            updateManualModeInfo();
         },
-        oneditsave: function () {},
         oneditcancel: function () {
             // Logic to handle cancellation if necessary
+            // Set radio based on saved value
+            $(`input[name="node-input-start-mode"][value="${this.startMode}"]`).prop("checked", true);
+        },
+        oneditsave: function () {
+            this.startMode = $("input[name='node-input-start-mode']:checked").val();
         },
     });
     RED.events.on("nodes:add", function (node) {
@@ -145,43 +121,34 @@
     });
 </script>
 <script type="text/markdown" data-help-name="save">
-This is the `Save node` for Seeed SenseCraft Model Assistant such as reCamera or Pi camera.
+This is the `Save Video` node for Seeed SenseCraft Model Assistant such as reCamera or Pi camera.
 
 ### Input
+
 Wire the camera node to the save node to enable the saving.
 
 ### Parameters
 
 #### Configuration
-Please select sscma for the client. 
 
-#### Save Mode
-- **Video (.mov)**: Save video files in MOV format (default)
-- **Image (.jpg)**: Save high-quality JPEG images at 1920x1080 resolution using hardware JPEG encoding at 5 FPS
+Please select sscma for the client.
 
 #### Storage
-- **Local**: path: `recamera/userdata/VIDEO`
-- **External**: Stored in SD card.
 
-#### Start tickbox
-Once ticked, the saving will start immediately. Saving parameters will be based on the slice/interval and duration below.
+-   **Local**: path: `recamera/userdata/VIDEO`
+-   **External**: Stored in SD card.
 
-#### Slice (Video Mode)
-Video time length of each file you want to save. (You can change units in the dropdown menu with version 0.1.6 or above)
+#### Start
 
-#### Interval (Image Mode)
-Time interval between saved images. (You can change units in the dropdown menu)
+Start immediately on deploy or control by message `msg.enable`.
+
+#### Slice
+
+Video time length of each file you want to save. You can change units in the dropdown menu.
 
 #### Duration
-Total time length of the video/images you want to save. (You can change units in the dropdown menu with version 0.1.6 or above)
 
-**Manual Mode (Image only)**: Set duration to 0 for manual capture mode. In this mode, images are captured only when a message with `msg.payload = "capture"` is sent to the node.
+Total time length of the video you want to save. You can change units in the dropdown menu.
 
-**Example Video**: if slice is set to 5 minutes and duration is set to 1 hour, the video will be saved in 12 files with 5 minutes each.
-
-**Example Image**: if interval is set to 30 seconds and duration is set to 1 hour, 120 images will be saved at 30-second intervals.
-
-**Example Manual Image**: set duration to 0, then send a message with payload = "capture" to capture and save an image.
-
-**Image Resolution**: If you want to save images in a different resolution, you must set the desired preview resolution in the Model node configuration. The Save node will use the preview resolution provided by the Model node.
+**Example**: if slice is set to 5 minutes and duration is set to 1 hour, the video will be saved in 12 files with 5 minutes each.
 </script>
