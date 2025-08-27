@@ -65,10 +65,107 @@
 
     (function () {
         // 全局变量，用于跟踪节点实例数量
-        let previewInstances = 0;
-        let aliveInterval = null;
-        let isSubscribed = false;
+        let ws = null;
+        let connectionStatus = "Disconnected";
         const latestImages = {};
+        // rAF 批量渲染
+        let rafId = null;
+        const pendingRenders = new Map();
+        function scheduleRender(id, data) {
+            try {
+                pendingRenders.set(id, data);
+                if (rafId) return;
+                rafId = window.requestAnimationFrame(function () {
+                    try {
+                        pendingRenders.forEach(function (pdata, pid) {
+                            render(pid, pdata);
+                        });
+                        pendingRenders.clear();
+                    } finally {
+                        rafId = null;
+                    }
+                });
+            } catch (e) {
+                // 兜底直接渲染
+                try {
+                    render(id, data);
+                } catch (err) {}
+            }
+        }
+        // const wsHost = window.location.hostname || "192.168.42.1";
+        const wsHost = "192.168.42.1";
+        let wsPort = 8090;
+        // JMuxer 实例缓存（camera 8080 用）
+        const jmuxers = new Map();
+        function loadJMuxer(callback) {
+            if (window.JMuxer) {
+                callback();
+                return;
+            }
+            const s = document.createElement("script");
+            s.src = "/sscma/jmuxer.min.js";
+            s.onload = function () {
+                callback();
+            };
+            s.onerror = function () {
+                try {
+                    s.remove();
+                } catch (e) {}
+            };
+            document.head.appendChild(s);
+        }
+        function getActivePreviewId() {
+            try {
+                const nodes = RED.nodes.filterNodes({ type: "preview" }).filter(function (n) {
+                    return !n.d && n.active !== false;
+                });
+                return nodes && nodes.length > 0 ? nodes[0].id : null;
+            } catch (e) {
+                return null;
+            }
+        }
+        function hasDeployedPreview() {
+            try {
+                return !!getActivePreviewId();
+            } catch (e) {
+                return false;
+            }
+        }
+
+        function getUpstreamTypes(previewId) {
+            const types = new Set();
+            try {
+                const nodeSet = RED.nodes.createCompleteNodeSet(true); // 包含 wires
+                const preview = nodeSet.find((n) => n && n.id === previewId);
+                const tabId = preview && preview.z ? preview.z : null;
+
+                nodeSet.forEach((n) => {
+                    if (!n || !Array.isArray(n.wires)) return;
+                    if (tabId && n.z !== tabId) return; // 仅同一 tab
+                    for (const arr of n.wires) {
+                        if (Array.isArray(arr) && arr.includes(previewId)) {
+                            if (n.type) types.add(n.type); // n 就是输入节点
+                        }
+                    }
+                });
+            } catch (e) {}
+            return Array.from(types);
+        }
+        function determinePort(previewId) {
+            const types = getUpstreamTypes(previewId);
+            if (types.includes("model")) return 8090;
+            if (types.includes("camera")) return 8080;
+            return 8090;
+        }
+
+        function initWsPort() {
+            try {
+                const id = getActivePreviewId();
+                wsPort = id ? determinePort(id) : 8090;
+            } catch (e) {
+                wsPort = 8090;
+            }
+        }
 
         RED.nodes.registerType("preview", {
             category: "Vision AI",
@@ -96,17 +193,19 @@
                     return !this.pass;
                 },
                 onclick: function () {
-                    const label = this.name || "preview";
                     const node = this;
-                    $.ajax({
-                        url: `image-output/${this.id}/${this.active ? "enable" : "disable"}`,
-                        type: "POST",
-                        success: function (resp, textStatus, xhr) {
-                            updateNodeState(node, !node.active);
-                            notifyResult(xhr.status, resp, label);
-                        },
-                        error: handleAjaxError,
-                    });
+                    const label = this.name || "preview";
+                    const active = node.active;
+                    try {
+                        if (active) {
+                            startWS();
+                        } else {
+                            stopWS();
+                            removePreview(node.id);
+                        }
+                    } catch (e) {}
+                    updateNodeState(node, active);
+                    RED.notify(`Successfully ${active ? "activated" : "deactivated"}: ${label}`, "success");
                 },
             },
             oneditprepare: function () {
@@ -117,36 +216,50 @@
                     typeField: $("#node-input-dataType"),
                     types: ["msg"],
                 });
-            }
+            },
         });
 
-        // 全局函数
-        const remove = function (nodeid) {
-            const $img = document.getElementById("image-output-img-" + nodeid);
-            const $group = document.getElementById("image-output-group-" + nodeid);
+        const removePreview = function (nodeid) {
+            try {
+                if (wsPort === 8080) {
+                    const vid = document.getElementById(`preview-video-${nodeid}`);
+                    const fo = document.getElementById(`preview-fo-${nodeid}`);
+                    if (vid) vid.remove();
+                    if (fo) fo.remove();
+                    try {
+                        if (jmuxers && jmuxers.has(nodeid)) {
+                            const jm = jmuxers.get(nodeid);
+                            try {
+                                jm && jm.reset && jm.reset();
+                            } catch (e) {}
+                            jmuxers.delete(nodeid);
+                        }
+                    } catch (e) {}
+                } else {
+                    const $img = document.getElementById("image-output-img-" + nodeid);
+                    const $group = document.getElementById("image-output-group-" + nodeid);
 
-            if ($img) $img.remove();
-            if ($group) $group.remove();
-            delete latestImages[nodeid];
+                    if ($img) $img.remove();
+                    if ($group) $group.remove();
+                    delete latestImages[nodeid];
+                }
+            } catch (e) {}
         };
 
         const render = function (id, data) {
             const $container = document.getElementById(id);
             if (!$container) return;
-
             let $img = document.getElementById(`image-output-img-${id}`);
-            let $group = document.getElementById(`image-output-group-${id}`);
-
             if (!$img) {
                 $img = createSVGElement("image", {
                     id: `image-output-img-${id}`,
                     x: "0",
                     y: "50",
                 });
-                $img.addEventListener("click", () => remove(id), { once: false });
                 $container.appendChild($img);
             }
 
+            let $group = document.getElementById(`image-output-group-${id}`);
             if (!$group) {
                 $group = createSVGElement("g", {
                     id: `image-output-group-${id}`,
@@ -665,111 +778,174 @@
             RED.view.redraw();
         };
 
-        const notifyResult = function (status, resp, label) {
-            if (status == 200) {
-                RED.notify(`Successfully ${resp}: ${label}`, "success");
-            }
-        };
+        const notifyResult = function () {};
 
-        const handleAjaxError = function (jqXHR, textStatus, errorThrown) {
-            let message;
-            switch (jqXHR.status) {
-                case 404:
-                    message = "node not deployed";
-                    break;
-                case 0:
-                    message = "no response from server";
-                    break;
-                default:
-                    message = `unexpected error (${textStatus}) ${errorThrown}`;
-            }
-            RED.notify(`<strong>Error</strong>: ${message}`, "error");
-        };
+        // WebSocket 客户端
+        function startWS() {
+            if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
+            try {
+                const url = `ws://${wsHost}:${wsPort}`;
+                if (wsPort === 8080) {
+                    const previewId = getActivePreviewId();
+                    const videoId = `preview-video-${previewId}`;
+                    const host = document.getElementById(previewId);
+                    if (!host) {
+                        return;
+                    }
+                    let $video = document.getElementById(videoId);
+                    if (!$video) {
+                        // 将 HTML <video> 嵌入到 SVG，需要使用 foreignObject + XHTML 命名空间
+                        let fo = document.getElementById(`preview-fo-${previewId}`);
+                        if (!fo) {
+                            const vb = (host.getAttribute("viewBox") || "0 0 640 360").split(/\s+/).map(Number);
+                            const vw = vb[2] || 640;
+                            const vh = vb[3] || 360;
+                            const vy = vb[1] || 0;
+                            const headerOffset = 50;
+                            fo = createSVGElement("foreignObject", {
+                                id: `preview-fo-${previewId}`,
+                                x: "0",
+                                y: String(vy + headerOffset),
+                                width: String(vw),
+                                height: String(Math.max(0, vh - headerOffset)),
+                            });
+                            host.appendChild(fo);
+                        }
+                        const xhtmlNS = "http://www.w3.org/1999/xhtml";
+                        const wrapper = document.createElementNS(xhtmlNS, "div");
+                        try {
+                            wrapper.style.width = "100%";
+                            wrapper.style.height = "100%";
+                        } catch (e) {}
+                        $video = document.createElementNS(xhtmlNS, "video");
+                        $video.setAttribute("id", videoId);
+                        $video.setAttribute("autoplay", true);
+                        $video.setAttribute("muted", false);
+                        $video.setAttribute("controls", true);
+                        try {
+                            $video.style.width = "100%";
+                            $video.style.height = "100%";
+                        } catch (e) {}
+                        wrapper.appendChild($video);
+                        fo.appendChild(wrapper);
+                    }
+                    loadJMuxer(function () {
+                        if (!jmuxers.has(previewId)) {
+                            const jm = new JMuxer({
+                                node: videoId,
+                                mode: "video",
+                                flushingTime: 50,
+                                fps: 30,
+                                debug: false,
+                                onError: function () {
+                                    try {
+                                        this.reset && this.reset();
+                                    } catch (e) {}
+                                },
+                            });
+                            jmuxers.set(previewId, jm);
+                        }
+                        try {
+                            if (ws) ws.close();
+                        } catch (e) {}
+                        ws = new WebSocket(url);
+                        ws.binaryType = "arraybuffer";
+                        const jm = jmuxers.get(previewId);
+                        // 首次用户交互后尝试播放（某些浏览器策略需要）
+                        try {
+                            $video.play().catch(function () {});
+                        } catch (e) {}
+                        ws.addEventListener("message", function (ev) {
+                            try {
+                                const u8 = new Uint8Array(ev.data);
+                                if (u8 && u8.length) {
+                                    jm && jm.feed({ video: u8, duration: 33 });
+                                }
+                            } catch (e) {}
+                        });
+                        ws.addEventListener("open", function () {
+                            connectionStatus = "Connected";
+                        });
+                        ws.addEventListener("close", function () {
+                            connectionStatus = "Disconnected";
+                            setTimeout(startWS, 3000);
+                        });
+                        ws.addEventListener("error", function () {
+                            connectionStatus = "Error";
+                        });
+                    });
+                    return;
+                }
 
-        // 开始预览服务
-        function startPreviewServices() {
-            if (!isSubscribed) {
-                // 订阅通信频道
-                RED.comms.subscribe("preview", function (event, data) {
-                    if (data.hasOwnProperty("data")) {
-                        latestImages[data.id] = data.data;
-                        render(data.id, data.data, RED.nodes.node(data.id));
-                    } else {
-                        remove(data.id);
+                ws = new WebSocket(url);
+                ws.binaryType = "arraybuffer";
+                ws.addEventListener("open", function () {
+                    connectionStatus = "Connected";
+                });
+                ws.addEventListener("close", function () {
+                    connectionStatus = "Disconnected";
+                    setTimeout(startWS, 3000);
+                });
+                ws.addEventListener("error", function () {
+                    connectionStatus = "Error";
+                });
+                ws.addEventListener("message", function (event) {
+                    try {
+                        const dataBuffer = event.data;
+                        let obj = null;
+                        if (typeof dataBuffer === "string") {
+                            obj = JSON.parse(dataBuffer);
+                        } else {
+                            const uint8Array = new Uint8Array(dataBuffer);
+                            const text = new TextDecoder().decode(uint8Array);
+                            obj = JSON.parse(text);
+                        }
+                        let id = getActivePreviewId();
+                        if (id && obj && obj.hasOwnProperty("data")) {
+                            const data = obj.data;
+                            latestImages[id] = data;
+                            scheduleRender(id, latestImages[id]);
+                        } else if (id && obj && !obj.hasOwnProperty("data")) {
+                            removePreview(id);
+                        }
+                    } catch (e) {
+                        console.error(e);
                     }
                 });
-                isSubscribed = true;
-                
-                // 发送初始alive消息
-                $.ajax({
-                    url: `image-output/0/alive`,
-                    type: "POST",
-                });
-                
-                // 设置定期发送alive消息的定时器
-                aliveInterval = setInterval(() => {
-                    $.ajax({
-                        url: `image-output/0/alive`,
-                        type: "POST",
-                        timeout: 500,
-                    });
-                }, 3000);
-            }
+            } catch (e) {}
         }
-        
-        // 停止预览服务
-        function stopPreviewServices() {
-            if (isSubscribed) {
-                // 取消订阅
-                RED.comms.unsubscribe("preview");
-                isSubscribed = false;
-                
-                // 清除定时器
-                if (aliveInterval) {
-                    clearInterval(aliveInterval);
-                    aliveInterval = null;
-                }
+
+        function stopWS() {
+            if (ws) {
+                try {
+                    ws.close();
+                } catch (e) {}
+                ws = null;
             }
         }
 
-        // 监听编辑器事件，用于检测节点的添加和移除
-        RED.events.on("nodes:add", function (node) {
-            if (node.type === "preview") {
-                // 单例检查
-                const existingNodes = RED.nodes.filterNodes({ type: "preview" });
-                if (existingNodes.length > 1) {
-                    RED.notify("This node can only be instantiated once.", "error");
-                    RED.nodes.remove(node.id);
+        // 监听部署变化以管理 WS 生命周期
+        RED.events.on("deploy", function () {
+            setTimeout(function () {
+                const id = getActivePreviewId();
+                removePreview(id);
+                initWsPort();
+                if (hasDeployedPreview()) {
+                    stopWS();
+                    startWS();
+                } else {
+                    stopWS();
                 }
-            }
+            }, 500);
         });
-    
-        // 监听节点部署事件
-        RED.events.on("deploy", function() {
-            // 部署后检查是否有已部署的preview节点
-            setTimeout(function() {
-                checkDeployedNodes();
-            }, 500); // 延迟一点时间确保部署完成
-        });
-        
-        function checkDeployedNodes() {
-            // 获取所有已部署的preview节点
-            const deployedPreviewNodes = RED.nodes.filterNodes({ type: "preview" }).filter(n => !n.d);
-            
-            if (deployedPreviewNodes.length > 0 && !isSubscribed) {
-                // 有已部署的preview节点，启动服务
-                startPreviewServices();
-            } else if (deployedPreviewNodes.length === 0 && isSubscribed) {
-                // 没有已部署的preview节点，但服务正在运行，停止服务
-                stopPreviewServices();
-            }
-        }
-        
-        // 在编辑器加载完成后检查是否已存在*已部署的* preview节点
-        $(document).ready(function() {
-            setTimeout(function() {
-                checkDeployedNodes();
-            }, 1000); // 给页面加载一些时间
+
+        $(document).ready(function () {
+            setTimeout(function () {
+                initWsPort();
+                if (hasDeployedPreview()) {
+                    startWS();
+                }
+            }, 1000);
         });
     })();
 </script>
@@ -786,6 +962,43 @@
 </script>
 
 <script type="text/markdown" data-help-name="preview">
-This is the preview node for Seeed SenseCraft Model Assistant such as reCamera or Pi camera.
-By using this node, you can preview the detected output image.
+This is the `preview` node for Seeed SenseCraft Model Assistant (e.g. reCamera / Pi camera).
+
+### What it does
+
+-   **Sink node (no outputs)** used to display camera frames and AI inference overlays in the editor UI.
+-   Automatically decides data source by upstream wiring:
+    -   Upstream contains `camera` → use H.264 (port 8080) and play via JMuxer.
+    -   Upstream contains `model` → receive JSON/BASE64 overlays (port 8090) and render in SVG.
+-   Redeploy re-initializes the port and reconnects automatically.
+
+### Inputs
+
+-   No wired inputs required for display. Just place `preview` after your nodes to indicate the data flow.
+-   Typical wirings:
+    -   `camera → preview` (live video preview via 8080)
+    -   `camera → model → preview` (AI overlay preview via 8090)
+
+### Configuration
+
+-   **Name**: Optional label shown under the node.
+-   Node button: toggle to start/stop preview rendering.
+
+### Behavior details
+
+-   Video (8080): The node injects an HTML `<video>` inside the SVG via `foreignObject` and plays frames using `JMuxer`.
+-   Overlays (8090): Draws boxes/segments/keypoints/lines/classes as SVG on top of the base image.
+-   If you only see a black canvas with a tip, enable the `Base64 image output` in the `model` node to send images.
+-   The JMuxer script is served by this node at `/sscma/jmuxer.min.js` — no extra Node-RED config required.
+
+### Tips
+
+-   If you move between `camera` and `model` pipelines, just redeploy. The node will switch ports automatically.
+-   Default device host is `192.168.42.1`. Adjust it in the node source if your device uses a different IP.
+-   To clean the view programmatically, call the internal cleanup (the node does this when toggling or redeploying).
+
+### Notes
+
+-   This node is meant for previewing only and does not emit any messages.
+-   For saving/streaming, use the `save`/`stream` nodes respectively.
 </script>
