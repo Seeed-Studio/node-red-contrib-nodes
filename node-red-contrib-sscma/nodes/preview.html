@@ -92,8 +92,7 @@
                 } catch (err) {}
             }
         }
-        // const wsHost = window.location.hostname || "192.168.42.1";
-        const wsHost = "192.168.42.1";
+        const wsHost = window.location.hostname;
         let wsPort = 8090;
         // JMuxer 实例缓存（camera 8080 用）
         const jmuxers = new Map();
