@@ -8,6 +8,7 @@ module.exports = function (RED) {
             slice: +config.slice * Math.pow(60, Number(config.timeUnit)),
             duration: +config.duration * Math.pow(60, Number(config.durationUnit)),
             enabled: config.startMode === "immediate",
+            saveMode: "video",
         };
         node.on("input", function (msg) {
             if (msg.hasOwnProperty("enabled")) {

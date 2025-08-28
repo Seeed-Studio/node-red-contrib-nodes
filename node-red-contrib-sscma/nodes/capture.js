@@ -7,6 +7,7 @@ module.exports = function (RED) {
             storage: config.storage,
             interval: +config.interval * Math.pow(60, Number(config.timeUnit)),
             enabled: config.startMode === "immediate",
+            saveMode: "image",
         };
         let intervalHandle = null;
 

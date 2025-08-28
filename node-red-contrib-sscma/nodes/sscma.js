@@ -115,7 +115,7 @@ module.exports = function (RED) {
             });
 
             const create = {
-                type: Node.type,
+                type: Node.type == "capture" ? "save" : Node.type,
                 config: Node.config,
                 dependencies: dependencies,
                 dependents: dependents,
@@ -127,7 +127,7 @@ module.exports = function (RED) {
 
         node.deregister = function (Node, done, autoDisconnect) {
             const destroy = {
-                type: Node.type,
+                type: Node.type == "capture" ? "save" : Node.type,
             };
             node.request(Node.id, "destroy", destroy, done);
             delete node.users[Node.id];

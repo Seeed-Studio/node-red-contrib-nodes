@@ -93,6 +93,10 @@
                 $nameInput.val(defaultImageName);
             }
 
+            // Ensure start mode radio has a default selection
+            var mode = (this.startMode && (this.startMode === "immediate" || this.startMode === "msg")) ? this.startMode : "immediate";
+            $(`input[name="node-input-start-mode"][value="${mode}"]`).prop("checked", true);
+
             function updateIntervalControlsEnablement() {
                 var controlByMsg = $("input[name='node-input-start-mode'][value='msg']").is(":checked");
                 $("#node-input-interval").prop("disabled", controlByMsg);
@@ -133,7 +137,7 @@ Please select sscma for the client.
 
 #### Storage
 
--   **Local**: path: `recamera/userdata/IMAGE`
+-   **Local**: path: `/userdata/Images`
 -   **External**: Stored in SD card.
 
 #### Save photo
