@@ -109,8 +109,20 @@
             mirrorInput.checked = this.mirror !== false; // default to false
             flipInput.checked = this.flip !== false; // default to false
 
-            optionsInput.value = this.options;
-            fpsInput.value = this.fps;
+            // Ensure selects show sensible defaults if value is missing/invalid
+            var optionsVal = String(this.options);
+            var validOptions = ["0", "1", "2"]; // 1080p/720p/480p
+            if (!validOptions.includes(optionsVal)) {
+                optionsVal = "0"; // default 1080p
+            }
+            optionsInput.value = optionsVal;
+
+            var fpsVal = String(this.fps);
+            var validFps = ["5", "10", "15", "30"];
+            if (!validFps.includes(fpsVal)) {
+                fpsVal = "30"; // default 30 FPS
+            }
+            fpsInput.value = fpsVal;
 
             // Disable volume if audio is off
             if (!audioInput.checked) {
