@@ -5,7 +5,6 @@ module.exports = function (RED) {
     function PreviewNode(config) {
         RED.nodes.createNode(this, config);
         const node = this;
-        this.active = config.active === null || typeof config.active === "undefined" || config.active;
 
         node.on("close", function () {
             node.status({});
