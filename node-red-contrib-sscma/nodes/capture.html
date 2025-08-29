@@ -25,14 +25,14 @@
     </div>
     <div class="form-row" style="display: flex;">
         <label>
-            <i class="fa fa-toggle-on"></i>
-            <span id="start-label">Save photo</span>
+            <i class="fa fa-camera"></i>
+            <span id="capture-mode-label">Capture Mode</span>
         </label>
         <div>
             <div style="display: flex; align-items: flex-start; margin-bottom: 5px;">
-                <input style="width: auto; margin-right: 10px;" type="radio" name="node-input-start-mode" value="immediate" />
+                <input style="width: auto; margin-right: 10px;" type="radio" name="node-input-capture-mode" value="periodic" />
                 <div>
-                    <span id="start-radio-immediate-label">Capture at certain frequency</span>
+                    <span id="capture-mode-periodic-label">Capture at certain frequency</span>
                     <div id="image-interval" style="margin-top: 5px; color: #666; display: flex; align-items: center;">
                         <span style="margin-right: 8px;">Take 1 photo every</span>
                         <select id="node-input-interval" style="width: 50px;">
@@ -47,13 +47,44 @@
                             <option value="2">Hours</option>
                         </select>
                     </div>
+                    <div id="capture-duration" style="margin-top: 5px; color: #666; display: flex; align-items: center;">
+                        <span style="margin-right: 8px;">Duration:</span>
+                        <input type="number" id="node-input-duration" min="0" placeholder="Enter 0 for indefinite" style="width: 60px;" />
+                        <select id="node-input-durationUnit" style="width: auto; margin-left: 5px;">
+                            <option value="0">Seconds</option>
+                            <option value="1" selected>Minutes</option>
+                            <option value="2">Hours</option>
+                        </select>
+                    </div>
                 </div>
+            </div>
+            <div style="display: flex;">
+                <input style="width: auto; margin: 0 10px 0 0;" type="radio" name="node-input-capture-mode" value="trigger" />
+                <span id="capture-mode-trigger-label">Control by message</span>
+            </div>
+            <div id="trigger-msg-tips" style="margin-left: 24px; color: #888;">Take 1 photo when msg.enable is true or msg.payload = "capture"</div>
+        </div>
+    </div>
+
+    <div class="form-row" style="display: flex;">
+        <label>
+            <i class="fa fa-toggle-on"></i>
+            <span id="start-label">Start</span>
+        </label>
+        <div>
+            <div style="display: flex; margin-bottom: 5px;">
+                <input style="width: auto; margin: 0 10px 0 0;" type="radio" name="node-input-start-mode" value="immediate" />
+                <span id="start-radio-immediate-label">Start immediately when deploy</span>
             </div>
             <div style="display: flex;">
                 <input style="width: auto; margin: 0 10px 0 0;" type="radio" name="node-input-start-mode" value="msg" />
                 <span id="start-radio-msg-label">Control by msg.enable</span>
             </div>
-            <div id="start-msg-tips" style="margin-left: 24px; color: #888;">Take 1 photo when msg.enable is true</div>
+            <div id="start-msg-tips" style="margin-left: 24px; color: #888;">
+                When msg.enable is true, the capture starts.
+                <br />
+                When msg.enable is false, the capture stops.
+            </div>
         </div>
     </div>
     <div class="form-row" id="manual-mode-info" style="display: block;">
@@ -72,7 +103,10 @@
             interval: { value: "5" },
             timeUnit: { value: "1" },
             storage: { value: "local" },
-            startMode: { value: "immediate" },
+            duration: { value: 0 }, // Default duration (0 means indefinite)
+            durationUnit: { value: "1" }, // Default duration unit (1 means minutes)
+            captureMode: { value: "periodic" }, // periodic or trigger
+            startMode: { value: "immediate" }, // immediate or msg
             client: { type: "sscma", required: true, label: RED._("sscma") },
         },
         inputs: 1,
@@ -93,24 +127,32 @@
                 $nameInput.val(defaultImageName);
             }
 
+            // Ensure capture mode radio has a default selection
+            var captureMode = (this.captureMode && (this.captureMode === "periodic" || this.captureMode === "trigger")) ? this.captureMode : "periodic";
+            $(`input[name="node-input-capture-mode"][value="${captureMode}"]`).prop("checked", true);
+
             // Ensure start mode radio has a default selection
-            var mode = (this.startMode && (this.startMode === "immediate" || this.startMode === "msg")) ? this.startMode : "immediate";
-            $(`input[name="node-input-start-mode"][value="${mode}"]`).prop("checked", true);
+            var startMode = (this.startMode && (this.startMode === "immediate" || this.startMode === "msg")) ? this.startMode : "immediate";
+            $(`input[name="node-input-start-mode"][value="${startMode}"]`).prop("checked", true);
 
             function updateIntervalControlsEnablement() {
-                var controlByMsg = $("input[name='node-input-start-mode'][value='msg']").is(":checked");
-                $("#node-input-interval").prop("disabled", controlByMsg);
-                $("#node-input-timeUnit").prop("disabled", controlByMsg);
+                var isTriggered = $("input[name='node-input-capture-mode'][value='trigger']").is(":checked");
+                $("#node-input-interval").prop("disabled", isTriggered);
+                $("#node-input-timeUnit").prop("disabled", isTriggered);
+                $("#node-input-duration").prop("disabled", isTriggered);
+                $("#node-input-durationUnit").prop("disabled", isTriggered);
             }
-            $("input[name='node-input-start-mode']").on("change", function () {
+            $("input[name='node-input-capture-mode']").on("change", function () {
                 updateIntervalControlsEnablement();
             });
             updateIntervalControlsEnablement();
         },
         oneditcancel: function () {
+            $(`input[name="node-input-capture-mode"][value="${this.captureMode}"]`).prop("checked", true);
             $(`input[name="node-input-start-mode"][value="${this.startMode}"]`).prop("checked", true);
         },
         oneditsave: function () {
+            this.captureMode = $("input[name='node-input-capture-mode']:checked").val();
             this.startMode = $("input[name='node-input-start-mode']:checked").val();
         },
     });
@@ -140,14 +182,24 @@ Please select sscma for the client.
 -   **Local**: path: `/userdata/Images`
 -   **External**: Stored in SD card.
 
-#### Save photo
+#### Capture Mode
 
--   **Capture at certain frequency**: Take one photo periodically based on interval
--   **Control by msg.enable**: Take one photo when `msg.enable` is true
+-   **Capture at certain frequency**: Take one photo periodically based on interval and duration
+-   **Control by message**: Take one photo when `msg.enable` is true or `msg.payload = "capture"`
+
+#### Start
+
+Start immediately on deploy or control by message `msg.enable`.
 
 #### Interval
 
-Time interval between saved images. You can change units in the dropdown menu.
+Time interval between saved images. You can change units in the dropdown menu. Only available in periodic mode.
+
+#### Duration
+
+Total time length of the capture session. You can change units in the dropdown menu. Set to 0 for indefinite capture. Only available in periodic mode.
+
+**Example**: if interval is set to 5 minutes and duration is set to 1 hour, 12 photos will be captured (one every 5 minutes for 1 hour).
 
 #### Manual capture
 

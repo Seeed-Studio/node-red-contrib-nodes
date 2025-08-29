@@ -6,7 +6,7 @@ module.exports = function (RED) {
         node.config = {
             storage: config.storage,
             slice: +config.interval * Math.pow(60, Number(config.timeUnit)),
-            duration: 0,
+            duration: config.captureMode === "trigger" ? 0 : +config.duration * Math.pow(60, Number(config.durationUnit)),
             enabled: config.startMode === "immediate",
             saveMode: "image",
         };
