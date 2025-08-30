@@ -49,13 +49,14 @@
                     </div>
                     <div id="capture-duration" style="margin-top: 5px; color: #666; display: flex; align-items: center;">
                         <span style="margin-right: 8px;">Duration:</span>
-                        <input type="number" id="node-input-duration" min="0" placeholder="Enter 0 for indefinite" style="width: 60px;" />
+                        <input type="number" id="node-input-duration" min="0" style="width: 60px;" />
                         <select id="node-input-durationUnit" style="width: auto; margin-left: 5px;">
                             <option value="0">Seconds</option>
                             <option value="1" selected>Minutes</option>
                             <option value="2">Hours</option>
                         </select>
                     </div>
+                    <div id="duration-tip" style="margin-top: 3px; color: #888;">Enter 0 for indefinite</div>
                 </div>
             </div>
             <div style="display: flex;">
@@ -134,6 +135,20 @@
             // Ensure start mode radio has a default selection
             var startMode = (this.startMode && (this.startMode === "immediate" || this.startMode === "msg")) ? this.startMode : "immediate";
             $(`input[name="node-input-start-mode"][value="${startMode}"]`).prop("checked", true);
+
+            // Ensure default values for interval/timeUnit/duration/durationUnit when undefined
+            if (this.interval === undefined || this.interval === null || this.interval === "") {
+                $("#node-input-interval").val("5");
+            }
+            if (this.timeUnit === undefined || this.timeUnit === null || this.timeUnit === "") {
+                $("#node-input-timeUnit").val("1");
+            }
+            if (this.duration === undefined || this.duration === null || this.duration === "") {
+                $("#node-input-duration").val(0);
+            }
+            if (this.durationUnit === undefined || this.durationUnit === null || this.durationUnit === "") {
+                $("#node-input-durationUnit").val("1");
+            }
 
             function updateIntervalControlsEnablement() {
                 var isTriggered = $("input[name='node-input-capture-mode'][value='trigger']").is(":checked");
