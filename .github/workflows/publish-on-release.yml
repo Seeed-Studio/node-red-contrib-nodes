@@ -1,0 +1,111 @@
+name: Publish packages on release
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        package:
+          - node-red-contrib-seeed-canbus
+          - node-red-contrib-seeed-recamera
+          - node-red-contrib-sscma
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch complete git history
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Make scripts executable
+        run: chmod +x .github/scripts/check-version-update.sh
+
+      - name: Get package info
+        id: package-info
+        run: |
+          cd ${{ matrix.package }}
+          PACKAGE_NAME=$(node -p "require('./package.json').name")
+          PACKAGE_VERSION=$(node -p "require('./package.json').version")
+          echo "name=$PACKAGE_NAME" >> $GITHUB_OUTPUT
+          echo "version=$PACKAGE_VERSION" >> $GITHUB_OUTPUT
+          echo "Package: $PACKAGE_NAME, Version: $PACKAGE_VERSION"
+
+      - name: Check if version was updated in this release
+        id: version-check
+        run: |
+          if .github/scripts/check-version-update.sh ${{ matrix.package }}; then
+            echo "should-publish=true" >> $GITHUB_OUTPUT
+            echo "reason=version-updated" >> $GITHUB_OUTPUT
+          else
+            echo "should-publish=false" >> $GITHUB_OUTPUT
+            echo "reason=no-version-change" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Check if package exists on npm
+        id: npm-check
+        if: steps.version-check.outputs.should-publish == 'true'
+        run: |
+          PACKAGE_NAME="${{ steps.package-info.outputs.name }}"
+          PACKAGE_VERSION="${{ steps.package-info.outputs.version }}"
+          
+          # Check if package already exists on npm
+          if npm view "$PACKAGE_NAME@$PACKAGE_VERSION" version 2>/dev/null; then
+            echo "Package $PACKAGE_NAME@$PACKAGE_VERSION already exists on npm"
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "Package $PACKAGE_NAME@$PACKAGE_VERSION does not exist on npm"
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Install dependencies
+        if: steps.version-check.outputs.should-publish == 'true' && steps.npm-check.outputs.exists == 'false'
+        run: |
+          cd ${{ matrix.package }}
+          npm ci || npm install
+
+      - name: Run tests (if available)
+        if: steps.version-check.outputs.should-publish == 'true' && steps.npm-check.outputs.exists == 'false'
+        run: |
+          cd ${{ matrix.package }}
+          # Check if test script exists
+          if npm run | grep -q "test"; then
+            npm test
+          else
+            echo "No test script found, skipping tests"
+          fi
+
+      - name: Publish to npm
+        if: steps.version-check.outputs.should-publish == 'true' && steps.npm-check.outputs.exists == 'false'
+        run: |
+          cd ${{ matrix.package }}
+          npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Create summary
+        run: |
+          echo "## Package: ${{ steps.package-info.outputs.name }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Version:** ${{ steps.package-info.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Action:** " >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ steps.version-check.outputs.should-publish }}" == "true" ]; then
+            if [ "${{ steps.npm-check.outputs.exists }}" == "true" ]; then
+              echo "⚠️ Skipped - Version already exists on npm" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "✅ Published to npm" >> $GITHUB_STEP_SUMMARY
+            fi
+          else
+            echo "⏭️ Skipped - No version change detected" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "**Reason:** ${{ steps.version-check.outputs.reason }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
