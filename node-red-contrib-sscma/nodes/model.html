@@ -191,15 +191,22 @@
         color: #0056b3;
     }
 
-    /* Fade In Animation */
-    @keyframes fadeIn {
-        from {
-            opacity: 0;
-        }
+    #base64-warning {
+        display: none;
+        margin-left: 180px;
+        margin-top: 8px;
+        padding: 8px 12px;
+        background-color: #fff3cd;
+        border: 1px solid #ffeaa7;
+        border-radius: 4px;
+        font-size: 12px;
+        color: #856404;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
 
-        to {
-            opacity: 1;
-        }
+    #base64-warning i {
+        margin-right: 6px;
+        color: #f39c12;
     }
 </style>
 
@@ -248,6 +255,7 @@
     <div class="form-row">
         <label for="node-input-previewResolution" style="width: 160px;"><i class="fa fa-expand"></i> Preview Resolution</label>
         <select id="node-input-previewResolution" style="width: 50%;">
+            <option value="auto">Auto</option>
             <option value="640x640">640x640 (Square)</option>
             <option value="1280x720">1280x720 (HD)</option>
             <option value="1920x1080">1920x1080 (Full HD)</option>
@@ -265,6 +273,9 @@
     <div class="form-row">
         <label for="node-input-debug" style="width: 160px;"><i class="fa fa-picture-o"></i> Base64 image output</label>
         <input type="checkbox" id="node-input-debug" style="width:auto; margin-top: 0;">
+        <div id="base64-warning">
+            <i class="fa fa-exclamation-triangle"></i>Warning: Enabling this option may significantly increase system load. Use with caution.
+        </div>
     </div>
     <div class="form-row">
         <label for="node-input-trace" style="width: 160px;"><i class="fa fa-toggle-on"></i> Assign ID to Object</label>
@@ -772,6 +783,16 @@
 
             updateCountingState();
 
+            // Add event listener for Base64 output checkbox
+            debugInput.addEventListener("change", function () {
+                const warningElement = document.getElementById("base64-warning");
+                if (debugInput.checked) {
+                    warningElement.style.display = "block";
+                } else {
+                    warningElement.style.display = "none";
+                }
+            });
+
             traceInput.addEventListener("change", updateCountingState);
 
             countingInput.addEventListener("change", function () {
@@ -1110,7 +1131,7 @@ Freely change models like yolo v5, yolo v8, yolo 11 and so on. You can also enjo
 
 ### Parameters
 
--   **Base64 Image Output Checkbox**: This checkbox is used to determine whether the base64 image code should be output along with other parameters.
+-   **Base64 Image Output Checkbox**: This checkbox is used to determine whether the base64 image code should be output along with other parameters. **Warning: Enabling this option may significantly increase system load and network bandwidth usage. Use with caution in production environments.**
 -   **Trace Checkbox**: Enables the tracking mode. When enabled, each detected object will be assigned a unique ID.
 -   **Counting Checkbox**: Enables the counting mode. When enabled, the node will output counting information to the console.
 -   **Splitter Field**: Used to set the counting line. Draw a line within the box to count the number of objects crossing it.
@@ -1135,7 +1156,7 @@ Wire the model node to a debug node to view the output. Here is an example outpu
     "0": "class name // e.g. person"
     ],
     "perf": [
-    "0": "0 fps //pre-processing fps",
+    "0": "0 ms //pre-processing time",
     "1": "40 ms //inference time",
     "2": "20 ms //post-processing time"
     ],
