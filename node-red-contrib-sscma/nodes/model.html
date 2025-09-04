@@ -755,7 +755,7 @@
             });
 
             // initialize draw checkbox and canvas visibility
-            drawInput.checked = false;
+            drawInput.checked = !!node.draw;
             drawInput.disabled = !countingInput.checked;
             initializeHandlesFromInput();
             updateCanvas();
@@ -775,7 +775,9 @@
             traceInput.addEventListener("change", updateCountingState);
 
             countingInput.addEventListener("change", function () {
-                drawInput.checked = false;
+                if (!countingInput.checked) {
+                    drawInput.checked = false;
+                }
                 drawInput.disabled = !countingInput.checked;
             });
 
