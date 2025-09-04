@@ -1,4 +1,33 @@
 <script type="text/javascript">
+    // Add fullscreen CSS styles
+    const style = document.createElement('style');
+    style.textContent = `
+        video::-webkit-media-controls-fullscreen-button {
+            display: block !important;
+        }
+        video:fullscreen {
+            width: 100vw !important;
+            height: 100vh !important;
+            object-fit: contain !important;
+        }
+        video:-webkit-full-screen {
+            width: 100vw !important;
+            height: 100vh !important;
+            object-fit: contain !important;
+        }
+        video:-moz-full-screen {
+            width: 100vw !important;
+            height: 100vh !important;
+            object-fit: contain !important;
+        }
+        video:-ms-fullscreen {
+            width: 100vw !important;
+            height: 100vh !important;
+            object-fit: contain !important;
+        }
+    `;
+    document.head.appendChild(style);
+
     const COLORS = [
         "#FF0000", // Red
         "#FF4500", // OrangeRed
@@ -64,13 +93,13 @@
     }
 
     (function () {
-        // 全局变量，用于跟踪节点实例数量
-        let ws = null;
-        let connectionStatus = "Disconnected";
+        // Global variables for tracking multiple preview instances
+        const wsConnections = new Map(); // Map of previewId -> {ws, port, status}
         const latestImages = {};
-        // rAF 批量渲染
+        // rAF batch rendering
         let rafId = null;
         const pendingRenders = new Map();
+        const wsHost = window.location.hostname;
         function scheduleRender(id, data) {
             try {
                 pendingRenders.set(id, data);
@@ -92,9 +121,222 @@
                 } catch (err) {}
             }
         }
-        const wsHost = window.location.hostname;
-        let wsPort = 8090;
-        // JMuxer 实例缓存（camera 8080 用）
+        // WebSocket management for individual preview nodes
+        function startWSForPreview(previewId) {
+            const port = determinePortForPreview(previewId);
+            const existingConnection = wsConnections.get(previewId);
+            
+            // Check if connection already exists and is active
+            if (existingConnection && existingConnection.ws && 
+                (existingConnection.ws.readyState === WebSocket.OPEN || 
+                 existingConnection.ws.readyState === WebSocket.CONNECTING)) {
+                return;
+            }
+            
+            // Close existing connection if any
+            if (existingConnection && existingConnection.ws) {
+                try {
+                    existingConnection.ws.close();
+                } catch (e) {}
+                wsConnections.delete(previewId);
+            }
+            
+            try {
+                const url = `ws://${wsHost}:${port}`;
+                const ws = new WebSocket(url);
+                
+                const connectionInfo = {
+                    ws: ws,
+                    port: port,
+                    status: "Connecting"
+                };
+                wsConnections.set(previewId, connectionInfo);
+                
+                if (port === 8080) {
+                    // Port 8080: Handle H.264 video stream
+                    const videoId = `preview-video-${previewId}`;
+                    const host = document.getElementById(previewId);
+                    if (!host) {
+                        return;
+                    }
+                    
+                    let $video = document.getElementById(videoId);
+                    if (!$video) {
+                        let fo = document.getElementById(`preview-fo-${previewId}`);
+                        if (!fo) {
+                            const vb = (host.getAttribute("viewBox") || "0 0 640 360").split(/\s+/).map(Number);
+                            const vw = vb[2] || 640;
+                            const vh = vb[3] || 360;
+                            const vy = vb[1] || 0;
+                            const headerOffset = 50;
+                            fo = createSVGElement("foreignObject", {
+                                id: `preview-fo-${previewId}`,
+                                x: "0",
+                                y: String(vy + headerOffset),
+                                width: String(vw),
+                                height: String(vh), // Remove height restriction
+                            });
+                            host.appendChild(fo);
+                        }
+                        const xhtmlNS = "http://www.w3.org/1999/xhtml";
+                        const wrapper = document.createElementNS(xhtmlNS, "div");
+                        wrapper.setAttribute("allowfullscreen", true);
+                        wrapper.setAttribute("webkitallowfullscreen", true);
+                        wrapper.setAttribute("mozallowfullscreen", true);
+                        try {
+                            wrapper.style.width = "100%";
+                            wrapper.style.height = "auto";
+                            wrapper.style.minHeight = "200px";
+                            wrapper.style.display = "flex";
+                            wrapper.style.alignItems = "center";
+                            wrapper.style.justifyContent = "center";
+                        } catch (e) {}
+                        $video = document.createElementNS(xhtmlNS, "video");
+                        $video.setAttribute("id", videoId);
+                        $video.setAttribute("autoplay", true);
+                        $video.setAttribute("muted", false);
+                        $video.setAttribute("controls", true);
+                        $video.setAttribute("allowfullscreen", true);
+                        $video.setAttribute("webkitallowfullscreen", true);
+                        $video.setAttribute("mozallowfullscreen", true);
+                        $video.setAttribute("playsinline", true);
+                        
+                        // Add double-click fullscreen event
+                        $video.addEventListener('dblclick', function() {
+                            if ($video.requestFullscreen) {
+                                $video.requestFullscreen();
+                            } else if ($video.webkitRequestFullscreen) {
+                                $video.webkitRequestFullscreen();
+                            } else if ($video.mozRequestFullScreen) {
+                                $video.mozRequestFullScreen();
+                            } else if ($video.msRequestFullscreen) {
+                                $video.msRequestFullscreen();
+                            }
+                        });
+                        try {
+                            $video.style.width = "100%";
+                            $video.style.height = "auto";
+                            $video.style.maxHeight = "none";
+                            $video.style.objectFit = "contain";
+                            $video.style.position = "relative";
+                        } catch (e) {}
+                        wrapper.appendChild($video);
+                        fo.appendChild(wrapper);
+                    }
+                    
+                    loadJMuxer(function () {
+                        if (!jmuxers.has(previewId)) {
+                            const jm = new JMuxer({
+                                node: videoId,
+                                mode: "video",
+                                flushingTime: 50,
+                                fps: 30,
+                                debug: false,
+                                onError: function () {
+                                    try {
+                                        this.reset && this.reset();
+                                    } catch (e) {}
+                                },
+                            });
+                            jmuxers.set(previewId, jm);
+                        }
+                        
+                        const jm = jmuxers.get(previewId);
+                        try {
+                            $video.play().catch(function () {});
+                        } catch (e) {}
+                        
+                        ws.binaryType = "arraybuffer";
+                        ws.addEventListener("message", function (ev) {
+                            try {
+                                const u8 = new Uint8Array(ev.data);
+                                if (u8 && u8.length) {
+                                    jm && jm.feed({ video: u8, duration: 33 });
+                                }
+                            } catch (e) {}
+                        });
+                        ws.addEventListener("open", function () {
+                            connectionInfo.status = "Connected";
+                        });
+                        ws.addEventListener("close", function () {
+                            connectionInfo.status = "Disconnected";
+                            wsConnections.delete(previewId);
+                            // Only reconnect if the preview node is still active
+                            if (isPreviewNodeActive(previewId)) {
+                                setTimeout(() => startWSForPreview(previewId), 3000);
+                            }
+                        });
+                        ws.addEventListener("error", function (e) {
+                            connectionInfo.status = "Error";
+                        });
+                    });
+                    return;
+                }
+                
+                // Port 8090: Handle AI inference results and image data
+                ws.binaryType = "arraybuffer";
+                ws.addEventListener("open", function () {
+                    connectionInfo.status = "Connected";
+                });
+                ws.addEventListener("close", function () {
+                    connectionInfo.status = "Disconnected";
+                    wsConnections.delete(previewId);
+                    // Only reconnect if the preview node is still active
+                    if (isPreviewNodeActive(previewId)) {
+                        setTimeout(() => startWSForPreview(previewId), 3000);
+                    }
+                });
+                ws.addEventListener("error", function (e) {
+                    connectionInfo.status = "Error";
+                });
+                ws.addEventListener("message", function (event) {
+                    try {
+                        const dataBuffer = event.data;
+                        let obj = null;
+                        if (typeof dataBuffer === "string") {
+                            obj = JSON.parse(dataBuffer);
+                        } else {
+                            const uint8Array = new Uint8Array(dataBuffer);
+                            const text = new TextDecoder().decode(uint8Array);
+                            obj = JSON.parse(text);
+                        }
+                        if (obj && obj.hasOwnProperty("data")) {
+                            const data = obj.data;
+                            latestImages[previewId] = data;
+                            scheduleRender(previewId, latestImages[previewId]);
+                        } else if (obj && !obj.hasOwnProperty("data")) {
+                            removePreview(previewId);
+                        }
+                    } catch (e) {
+                        console.error(e);
+                    }
+                });
+            } catch (e) {
+                console.error('Error starting WebSocket for preview:', e);
+            }
+        }
+        
+        function stopWSForPreview(previewId) {
+            const connectionInfo = wsConnections.get(previewId);
+            if (connectionInfo && connectionInfo.ws) {
+                try {
+                    connectionInfo.ws.close();
+                } catch (e) {}
+                wsConnections.delete(previewId);
+            }
+        }
+        
+        function startAllActivePreviewWS() {
+            const activeIds = getActivePreviewIds();
+            activeIds.forEach(id => startWSForPreview(id));
+        }
+        
+        function stopAllPreviewWS() {
+            wsConnections.forEach((connectionInfo, previewId) => {
+                stopWSForPreview(previewId);
+            });
+        }
+        // JMuxer 
         const jmuxers = new Map();
         function loadJMuxer(callback) {
             if (window.JMuxer) {
@@ -113,19 +355,34 @@
             };
             document.head.appendChild(s);
         }
-        function getActivePreviewId() {
+        function getActivePreviewIds() {
             try {
                 const nodes = RED.nodes.filterNodes({ type: "preview" }).filter(function (n) {
                     return !n.d && n.active !== false;
                 });
-                return nodes && nodes.length > 0 ? nodes[0].id : null;
+                return nodes.map(n => n.id);
             } catch (e) {
-                return null;
+                return [];
             }
         }
+        
+        function isPreviewNodeActive(previewId) {
+            try {
+                const node = RED.nodes.node(previewId);
+                return node && !node.d && node.active !== false;
+            } catch (e) {
+                return false;
+            }
+        }
+        
+        function getActivePreviewId() {
+            const ids = getActivePreviewIds();
+            return ids.length > 0 ? ids[0] : null;
+        }
+        
         function hasDeployedPreview() {
             try {
-                return !!getActivePreviewId();
+                return getActivePreviewIds().length > 0;
             } catch (e) {
                 return false;
             }
@@ -134,37 +391,58 @@
         function getUpstreamTypes(previewId) {
             const types = new Set();
             try {
-                const nodeSet = RED.nodes.createCompleteNodeSet(true); // 包含 wires
+                const nodeSet = RED.nodes.createCompleteNodeSet(true); // Include wire information
                 const preview = nodeSet.find((n) => n && n.id === previewId);
-                const tabId = preview && preview.z ? preview.z : null;
+                if (!preview) {
+                    return Array.from(types);
+                }
+                
+                const tabId = preview.z;
 
-                nodeSet.forEach((n) => {
-                    if (!n || !Array.isArray(n.wires)) return;
-                    if (tabId && n.z !== tabId) return; // 仅同一 tab
-                    for (const arr of n.wires) {
-                        if (Array.isArray(arr) && arr.includes(previewId)) {
-                            if (n.type) types.add(n.type); // n 就是输入节点
+                // Recursively find all upstream node types
+                function findUpstreamNodes(targetId, visited = new Set()) {
+                    if (visited.has(targetId)) return;
+                    visited.add(targetId);
+                    
+                    nodeSet.forEach((n) => {
+                        if (!n || !Array.isArray(n.wires)) return;
+                        if (tabId && n.z !== tabId) return; // Only nodes in same tab
+                        
+                        for (const arr of n.wires) {
+                            if (Array.isArray(arr) && arr.includes(targetId)) {
+                                if (n.type) {
+                                    types.add(n.type);
+                                }
+                                // Recursively find further upstream nodes
+                                findUpstreamNodes(n.id, visited);
+                            }
                         }
-                    }
-                });
-            } catch (e) {}
+                    });
+                }
+                
+                findUpstreamNodes(previewId);
+            } catch (e) {
+                console.error('Error getting upstream node types:', e);
+            }
             return Array.from(types);
         }
-        function determinePort(previewId) {
+        function determinePortForPreview(previewId) {
             const types = getUpstreamTypes(previewId);
-            if (types.includes("model")) return 8090;
-            if (types.includes("camera")) return 8080;
+            
+            // Use port 8090 for AI inference results if model node is upstream
+            if (types.includes("model")) {
+                return 8090;
+            }
+            
+            // Use port 8080 for H.264 video stream if camera node is upstream
+            if (types.includes("camera")) {
+                return 8080;
+            }
+            
+            // Default to port 8090
             return 8090;
         }
 
-        function initWsPort() {
-            try {
-                const id = getActivePreviewId();
-                wsPort = id ? determinePort(id) : 8090;
-            } catch (e) {
-                wsPort = 8090;
-            }
-        }
 
         RED.nodes.registerType("preview", {
             category: "Vision AI",
@@ -197,9 +475,9 @@
                     const active = node.active;
                     try {
                         if (active) {
-                            startWS();
+                            startWSForPreview(node.id);
                         } else {
-                            stopWS();
+                            stopWSForPreview(node.id);
                             removePreview(node.id);
                         }
                     } catch (e) {}
@@ -220,7 +498,12 @@
 
         const removePreview = function (nodeid) {
             try {
-                if (wsPort === 8080) {
+                // Check connection info to determine the port for this specific preview node
+                const connectionInfo = wsConnections.get(nodeid);
+                const nodePort = connectionInfo ? connectionInfo.port : determinePortForPreview(nodeid);
+                
+                if (nodePort === 8080) {
+                    // Clean up video elements
                     const vid = document.getElementById(`preview-video-${nodeid}`);
                     const fo = document.getElementById(`preview-fo-${nodeid}`);
                     if (vid) vid.remove();
@@ -235,6 +518,7 @@
                         }
                     } catch (e) {}
                 } else {
+                    // Clean up image elements (port 8090)
                     const $img = document.getElementById("image-output-img-" + nodeid);
                     const $group = document.getElementById("image-output-group-" + nodeid);
 
@@ -779,169 +1063,55 @@
 
         const notifyResult = function () {};
 
-        // WebSocket 客户端
-        function startWS() {
-            if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
-            try {
-                const url = `ws://${wsHost}:${wsPort}`;
-                if (wsPort === 8080) {
-                    const previewId = getActivePreviewId();
-                    const videoId = `preview-video-${previewId}`;
-                    const host = document.getElementById(previewId);
-                    if (!host) {
-                        return;
-                    }
-                    let $video = document.getElementById(videoId);
-                    if (!$video) {
-                        // 将 HTML <video> 嵌入到 SVG，需要使用 foreignObject + XHTML 命名空间
-                        let fo = document.getElementById(`preview-fo-${previewId}`);
-                        if (!fo) {
-                            const vb = (host.getAttribute("viewBox") || "0 0 640 360").split(/\s+/).map(Number);
-                            const vw = vb[2] || 640;
-                            const vh = vb[3] || 360;
-                            const vy = vb[1] || 0;
-                            const headerOffset = 50;
-                            fo = createSVGElement("foreignObject", {
-                                id: `preview-fo-${previewId}`,
-                                x: "0",
-                                y: String(vy + headerOffset),
-                                width: String(vw),
-                                height: String(Math.max(0, vh - headerOffset)),
-                            });
-                            host.appendChild(fo);
-                        }
-                        const xhtmlNS = "http://www.w3.org/1999/xhtml";
-                        const wrapper = document.createElementNS(xhtmlNS, "div");
-                        try {
-                            wrapper.style.width = "100%";
-                            wrapper.style.height = "100%";
-                        } catch (e) {}
-                        $video = document.createElementNS(xhtmlNS, "video");
-                        $video.setAttribute("id", videoId);
-                        $video.setAttribute("autoplay", true);
-                        $video.setAttribute("muted", false);
-                        $video.setAttribute("controls", true);
-                        try {
-                            $video.style.height = "100%";
-                        } catch (e) {}
-                        wrapper.appendChild($video);
-                        fo.appendChild(wrapper);
-                    }
-                    loadJMuxer(function () {
-                        if (!jmuxers.has(previewId)) {
-                            const jm = new JMuxer({
-                                node: videoId,
-                                mode: "video",
-                                flushingTime: 50,
-                                fps: 30,
-                                debug: false,
-                                onError: function () {
-                                    try {
-                                        this.reset && this.reset();
-                                    } catch (e) {}
-                                },
-                            });
-                            jmuxers.set(previewId, jm);
-                        }
-                        try {
-                            if (ws) ws.close();
-                        } catch (e) {}
-                        ws = new WebSocket(url);
-                        ws.binaryType = "arraybuffer";
-                        const jm = jmuxers.get(previewId);
-                        // 首次用户交互后尝试播放（某些浏览器策略需要）
-                        try {
-                            $video.play().catch(function () {});
-                        } catch (e) {}
-                        ws.addEventListener("message", function (ev) {
-                            try {
-                                const u8 = new Uint8Array(ev.data);
-                                if (u8 && u8.length) {
-                                    jm && jm.feed({ video: u8, duration: 33 });
-                                }
-                            } catch (e) {}
-                        });
-                        ws.addEventListener("open", function () {
-                            connectionStatus = "Connected";
-                        });
-                        ws.addEventListener("close", function () {
-                            connectionStatus = "Disconnected";
-                            setTimeout(startWS, 3000);
-                        });
-                        ws.addEventListener("error", function () {
-                            connectionStatus = "Error";
-                        });
-                    });
-                    return;
-                }
-
-                ws = new WebSocket(url);
-                ws.binaryType = "arraybuffer";
-                ws.addEventListener("open", function () {
-                    connectionStatus = "Connected";
-                });
-                ws.addEventListener("close", function () {
-                    connectionStatus = "Disconnected";
-                    setTimeout(startWS, 3000);
-                });
-                ws.addEventListener("error", function () {
-                    connectionStatus = "Error";
-                });
-                ws.addEventListener("message", function (event) {
+        // Listen for deploy events to manage WebSocket lifecycle
+        RED.events.on("deploy", function () {
+            // Add delay to ensure nodes are fully deployed
+            setTimeout(function () {
+                let retryCount = 0;
+                const maxRetries = 3;
+                
+                function tryInitialize() {
                     try {
-                        const dataBuffer = event.data;
-                        let obj = null;
-                        if (typeof dataBuffer === "string") {
-                            obj = JSON.parse(dataBuffer);
-                        } else {
-                            const uint8Array = new Uint8Array(dataBuffer);
-                            const text = new TextDecoder().decode(uint8Array);
-                            obj = JSON.parse(text);
+                        const activeIds = getActivePreviewIds();
+                        
+                        // Retry if no active nodes found and retries remaining
+                        if (activeIds.length === 0 && retryCount < maxRetries) {
+                            retryCount++;
+                            setTimeout(tryInitialize, 1000);
+                            return;
                         }
-                        let id = getActivePreviewId();
-                        if (id && obj && obj.hasOwnProperty("data")) {
-                            const data = obj.data;
-                            latestImages[id] = data;
-                            scheduleRender(id, latestImages[id]);
-                        } else if (id && obj && !obj.hasOwnProperty("data")) {
-                            removePreview(id);
+                        
+                        // Clean up old previews
+                        activeIds.forEach(id => removePreview(id));
+                        
+                        // Stop all existing connections
+                        stopAllPreviewWS();
+                        
+                        // Start connections for active previews
+                        if (hasDeployedPreview()) {
+                            // Give cleanup time to complete
+                            setTimeout(() => {
+                                startAllActivePreviewWS();
+                            }, 300);
                         }
                     } catch (e) {
-                        console.error(e);
+                        console.error('Error initializing preview:', e);
+                        // Retry on error
+                        if (retryCount < maxRetries) {
+                            retryCount++;
+                            setTimeout(tryInitialize, 1000);
+                        }
                     }
-                });
-            } catch (e) {}
-        }
-
-        function stopWS() {
-            if (ws) {
-                try {
-                    ws.close();
-                } catch (e) {}
-                ws = null;
-            }
-        }
-
-        // 监听部署变化以管理 WS 生命周期
-        RED.events.on("deploy", function () {
-            setTimeout(function () {
-                const id = getActivePreviewId();
-                removePreview(id);
-                initWsPort();
-                if (hasDeployedPreview()) {
-                    stopWS();
-                    startWS();
-                } else {
-                    stopWS();
                 }
-            }, 500);
+                
+                tryInitialize();
+            }, 1000);
         });
 
         $(document).ready(function () {
             setTimeout(function () {
-                initWsPort();
                 if (hasDeployedPreview()) {
-                    startWS();
+                    startAllActivePreviewWS();
                 }
             }, 1000);
         });

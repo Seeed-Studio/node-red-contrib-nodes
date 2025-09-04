@@ -12,7 +12,7 @@ module.exports = function (RED) {
     }
     RED.nodes.registerType("preview", PreviewNode);
 
-    // 提供前端可加载的 jmuxer.min.js 资源
+    // Serve the jmuxer.min.js file
     if (!routesRegistered) {
         try {
             RED.httpAdmin.get("/sscma/jmuxer.min.js", function (req, res) {
