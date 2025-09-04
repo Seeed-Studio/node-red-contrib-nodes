@@ -14,11 +14,12 @@ module.exports = function (RED) {
         RED.nodes.createNode(this, n);
         const node = this;
         node.client = RED.nodes.getNode(n.client);
-        
+
         node.config = {
             options: parseInt(n.options),
             fps: parseInt(n.fps),
             preview: false,
+            websocket: false,
             mirror: n.mirror ? true : false,
             flip: n.flip ? true : false,
             audio: n.audio ? (isNaN(parseInt(n.volume)) ? 80 : parseInt(n.volume)) : 0,
@@ -29,7 +30,7 @@ module.exports = function (RED) {
             wires.forEach((wire) => {
                 RED.nodes.eachNode(function (n) {
                     if (n.id === wire && n.type === "preview" && !n.d) {
-                        node.config.preview = true;
+                        node.config.websocket = true;
                     }
                 });
             });
