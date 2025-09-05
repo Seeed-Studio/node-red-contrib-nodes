@@ -106,8 +106,8 @@
             audioInput.checked = this.audio;
             volInput.value = this.volume;
             volValue.textContent = volInput.value;
-            mirrorInput.checked = this.mirror !== false; // default to false
-            flipInput.checked = this.flip !== false; // default to false
+            mirrorInput.checked = this.mirror === true; // default to false
+            flipInput.checked = this.flip === true; // default to false
 
             // Ensure selects show sensible defaults if value is missing/invalid
             var optionsVal = String(this.options);
