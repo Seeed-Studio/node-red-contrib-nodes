@@ -16,7 +16,7 @@ module.exports = function (RED) {
         node.client = RED.nodes.getNode(n.client);
 
         node.config = {
-            options: parseInt(n.options),
+            option: parseInt(n.option),
             fps: parseInt(n.fps),
             preview: false,
             websocket: false,

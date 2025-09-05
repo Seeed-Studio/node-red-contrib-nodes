@@ -30,11 +30,11 @@
     </div>
 
     <div class="form-row">
-        <label for="node-input-options">
+        <label for="node-input-option">
             <i class="fa fa-expand"></i>
             Resolution
         </label>
-        <select id="node-input-options" style="width: 50%;">
+        <select id="node-input-option" style="width: 50%;">
             <option value="2">640x480 (480p)</option>
             <option value="1">1280x720 (720p)</option>
             <option value="0" selected>1920x1080 (1080p)</option>
@@ -82,7 +82,7 @@
             client: { type: "sscma", required: true, label: RED._("sscma") },
             audio: { value: true },
             volume: { value: 80 },
-            options: { value: 0 },
+            option: { value: 0 },
             fps: { value: 30 },
             mirror: { value: false }, // Add mirror default
             flip: { value: false }, // Add flip default
@@ -99,7 +99,7 @@
             var volValue = document.getElementById("volume-value");
             var mirrorInput = document.getElementById("node-input-mirror");
             var flipInput = document.getElementById("node-input-flip");
-            var optionsInput = document.getElementById("node-input-options");
+            var optionInput = document.getElementById("node-input-option");
             var fpsInput = document.getElementById("node-input-fps");
 
             // Restore existing values
@@ -110,12 +110,12 @@
             flipInput.checked = this.flip === true; // default to false
 
             // Ensure selects show sensible defaults if value is missing/invalid
-            var optionsVal = String(this.options);
-            var validOptions = ["0", "1", "2"]; // 1080p/720p/480p
-            if (!validOptions.includes(optionsVal)) {
-                optionsVal = "0"; // default 1080p
+            var optionVal = String(this.option);
+            var validoption = ["0", "1", "2"]; // 1080p/720p/480p
+            if (!validoption.includes(optionVal)) {
+                optionVal = "0"; // default 1080p
             }
-            optionsInput.value = optionsVal;
+            optionInput.value = optionVal;
 
             var fpsVal = String(this.fps);
             var validFps = ["5", "10", "15", "30"];
@@ -186,7 +186,7 @@ This is the `camera node` for Seeed SenseCraft Model Assistant hardwares such as
 
 -   Connect with a `save` node to capture and save images or video.
 
-### Configuration Options
+### Configuration option
 
 -   **Audio**: Enable or disable audio capture.
 -   **Volume**: Adjust microphone volume (0–100).
