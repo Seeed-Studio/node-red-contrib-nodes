@@ -91,6 +91,20 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
+      - name: Remind to register/update on Node-RED flows library
+        if: steps.version-check.outputs.should-publish == 'true' && steps.npm-check.outputs.exists == 'false'
+        run: |
+          echo "🔔 If this is a new package or you want to refresh it immediately, please register/update it at:"
+          echo "    https://flows.nodered.org/add/node"
+          echo "    Module name: ${{ steps.package-info.outputs.name }}"
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "---" >> $GITHUB_STEP_SUMMARY
+          echo "**Manual Node-RED Flows Registration**" >> $GITHUB_STEP_SUMMARY
+          echo "If this is a new package or you want to refresh it immediately, please register/update it at:" >> $GITHUB_STEP_SUMMARY
+          echo "[https://flows.nodered.org/add/node](https://flows.nodered.org/add/node)" >> $GITHUB_STEP_SUMMARY
+          echo "Module name: ${{ steps.package-info.outputs.name }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
       - name: Create summary
         run: |
           echo "## Package: ${{ steps.package-info.outputs.name }}" >> $GITHUB_STEP_SUMMARY
