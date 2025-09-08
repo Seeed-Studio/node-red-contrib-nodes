@@ -7,7 +7,7 @@ module.exports = function (RED) {
             storage: config.storage,
             slice: +config.slice * Math.pow(60, Number(config.timeUnit)),
             duration: +config.duration * Math.pow(60, Number(config.durationUnit)),
-            enabled: config.startMode === "immediate",
+            enabled: config.startMode === "immediate" || !config.startMode, // Default to true if startMode is undefined
             saveMode: "video",
         };
         node.on("input", function (msg) {
