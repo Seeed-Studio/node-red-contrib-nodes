@@ -63,7 +63,7 @@
                 <input style="width: auto; margin: 0 10px 0 0;" type="radio" name="node-input-capture-mode" value="trigger" />
                 <span id="capture-mode-trigger-label">Control by message</span>
             </div>
-            <div id="trigger-msg-tips" style="margin-left: 24px; color: #888;">Take 1 photo when msg.enable is true or msg.payload = "capture"</div>
+            <div id="trigger-msg-tips" style="margin-left: 24px; color: #888;">Take 1 photo when msg.enabled is true (boolean) or msg.payload = "capture"</div>
         </div>
     </div>
 
@@ -79,12 +79,12 @@
             </div>
             <div style="display: flex;">
                 <input style="width: auto; margin: 0 10px 0 0;" type="radio" name="node-input-start-mode" value="msg" />
-                <span id="start-radio-msg-label">Control by msg.enable</span>
+                <span id="start-radio-msg-label">Control by msg.enabled</span>
             </div>
             <div id="start-msg-tips" style="margin-left: 24px; color: #888;">
-                When msg.enable is true, the capture starts.
+                When msg.enabled is true (boolean), the capture starts.
                 <br />
-                When msg.enable is false, the capture stops.
+                When msg.enabled is false (boolean), the capture stops.
             </div>
         </div>
     </div>
@@ -200,11 +200,11 @@ Please select sscma for the client.
 #### Capture Mode
 
 -   **Capture at certain frequency**: Take one photo periodically based on interval and duration
--   **Control by message**: Take one photo when `msg.enable` is true or `msg.payload = "capture"`
+-   **Control by message**: Take one photo when `msg.enabled` is true (boolean) or `msg.payload = "capture"`
 
 #### Start
 
-Start immediately on deploy or control by message `msg.enable`.
+Start immediately on deploy or control by message `msg.enabled` (boolean).
 
 #### Interval
 
