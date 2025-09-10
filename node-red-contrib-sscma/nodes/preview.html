@@ -168,7 +168,7 @@
                             const vw = vb[2] || 640;
                             const vh = vb[3] || 360;
                             const vy = vb[1] || 0;
-                            const headerOffset = 50;
+                            const headerOffset = 70; // Increase offset to match image position
                             fo = createSVGElement("foreignObject", {
                                 id: `preview-fo-${previewId}`,
                                 x: "0",
@@ -304,6 +304,9 @@
                             const data = obj.data;
                             latestImages[previewId] = data;
                             scheduleRender(previewId, latestImages[previewId]);
+                            
+                            // Update node status with counts if available
+                            updateNodeStatusWithCounts(previewId, data);
                         } else if (obj && !obj.hasOwnProperty("data")) {
                             removePreview(previewId);
                         }
@@ -443,6 +446,39 @@
             return 8090;
         }
 
+        function updateNodeStatusWithCounts(previewId, data) {
+            try {
+                if (data.counts && Array.isArray(data.counts) && data.counts.length >= 4) {
+                    const countA = data.counts[0];
+                    const countB = data.counts[1];
+                    const countBA = data.counts[2];
+                    const countAB = data.counts[3];
+                    const textContent = `A: ${countA} B: ${countB} A->B: ${countAB} B->A: ${countBA}`;
+                    
+                    // Create or update a text element in the SVG to show counts
+                    const $container = document.getElementById(previewId);
+                    if ($container) {
+                        let $statusText = document.getElementById(`status-text-${previewId}`);
+                        if (!$statusText) {
+                            $statusText = createSVGElement("text", {
+                                id: `status-text-${previewId}`,
+                                x: "10",
+                                y: "55", // Move down to avoid overlap with node
+                                "font-size": "18", // Increase font size
+                                fill: "blue",
+                                "font-family": "Arial",
+                                "font-weight": "bold",
+                            });
+                            $container.appendChild($statusText);
+                        }
+                        $statusText.textContent = textContent;
+                    }
+                }
+            } catch (e) {
+                console.error('Error updating node status with counts:', e);
+            }
+        }
+
 
         RED.nodes.registerType("preview", {
             category: "Vision AI",
@@ -526,6 +562,10 @@
                     if ($group) $group.remove();
                     delete latestImages[nodeid];
                 }
+                
+                // Clean up status text
+                const $statusText = document.getElementById(`status-text-${nodeid}`);
+                if ($statusText) $statusText.remove();
             } catch (e) {}
         };
 
@@ -537,7 +577,7 @@
                 $img = createSVGElement("image", {
                     id: `image-output-img-${id}`,
                     x: "0",
-                    y: "50",
+                    y: "70", // Move image down to make room for status text
                 });
                 $container.appendChild($img);
             }
@@ -546,7 +586,7 @@
             if (!$group) {
                 $group = createSVGElement("g", {
                     id: `image-output-group-${id}`,
-                    transform: "translate(0, 50)",
+                    transform: "translate(0, 70)", // Move group down to match image position
                 });
                 $container.appendChild($group);
             }
