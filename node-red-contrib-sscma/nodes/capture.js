@@ -10,7 +10,8 @@ module.exports = function (RED) {
             enabled: config.startMode === "immediate" || !config.startMode, // Default to true if startMode is undefined
             saveMode: "image",
         };
-        if (node.config.duration === 0) {
+        
+        if (node.config.duration === 0 && (config.captureMode !== "trigger")) {
             node.config.duration = -1; // Set to -1 for indefinite duration if captureMode is "interval"
         }
 
