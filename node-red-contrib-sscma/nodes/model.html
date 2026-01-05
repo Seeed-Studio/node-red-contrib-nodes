@@ -1079,33 +1079,123 @@
                     classes: classesInput.value.split(",").map((c) => c.trim()),
                 };
 
-                const formData = new FormData();
-                formData.append("model_file", file);
-                formData.append("model_info", JSON.stringify(info));
+                const CHUNK_SIZE = 512 * 1024; // 512KB
+                
+                // Check if we need chunked upload
+                if (file.size > CHUNK_SIZE) {
+                    // Chunked upload for large files
+                    let offset = 0;
+                    const totalSize = file.size;
+                    
+                    const uploadChunk = async () => {
+                        const chunk = file.slice(offset, offset + CHUNK_SIZE);
+                        const formData = new FormData();
+                        formData.append("model_file", chunk);
+                        formData.append("offset", offset.toString());
+                        formData.append("size", totalSize.toString());
+                        
+                        // Include model_info only in the final chunk
+                        if (offset + CHUNK_SIZE >= totalSize) {
+                            formData.append("model_info", JSON.stringify(info));
+                        }
+                        
+                        try {
+                            const response = await fetch(`http://${host}:${port}/api/deviceMgr/uploadModel`, {
+                                method: "POST",
+                                body: formData,
+                            });
+                            const result = await response.text();
+                            console.log(`Chunk uploaded: ${offset} / ${totalSize} (${((offset / totalSize) * 100).toFixed(1)}%)`);
+                            
+                            offset += CHUNK_SIZE;
+                            if (offset < totalSize) {
+                                // Upload next chunk
+                                await uploadChunk();
+                            } else {
+                                console.log("Upload completed:", result);
+                            }
+                        } catch (error) {
+                            console.log("Upload error:", error);
+                        }
+                    };
+                    
+                    uploadChunk();
+                } else {
+                    // Legacy single upload for small files
+                    const formData = new FormData();
+                    formData.append("model_file", file);
+                    formData.append("model_info", JSON.stringify(info));
 
-                fetch(`http://${host}:${port}/api/deviceMgr/uploadModel`, {
-                    method: "POST",
-                    body: formData,
-                })
-                    .then((response) => response.text())
-                    .then((result) => console.log(result))
-                    .catch((error) => console.log("error", error));
+                    fetch(`http://${host}:${port}/api/deviceMgr/uploadModel`, {
+                        method: "POST",
+                        body: formData,
+                    })
+                        .then((response) => response.text())
+                        .then((result) => console.log(result))
+                        .catch((error) => console.log("error", error));
+                }
             } else if (node.modelInfo || node.infoChanged) {
                 const info = JSON.parse(node.modelInfo);
-                const formData = new FormData();
-                if (node.modelFile) {
-                    formData.append("model_file", node.modelFile);
-                    node.modelFile = null;
-                }
                 info.classes = classesInput.value.split(",").map((c) => c.trim());
-                formData.append("model_info", JSON.stringify(info));
-                fetch(`http://${host}:${port}/api/deviceMgr/uploadModel`, {
-                    method: "POST",
-                    body: formData,
-                })
-                    .then((response) => response.text())
-                    .then((result) => console.log(result))
-                    .catch((error) => console.log("error", error));
+                
+                const CHUNK_SIZE = 512 * 1024; // 512KB
+                
+                if (node.modelFile && node.modelFile.size > CHUNK_SIZE) {
+                    // Chunked upload for large model files
+                    const file = node.modelFile;
+                    let offset = 0;
+                    const totalSize = file.size;
+                    
+                    const uploadChunk = async () => {
+                        const chunk = file.slice(offset, offset + CHUNK_SIZE);
+                        const formData = new FormData();
+                        formData.append("model_file", chunk);
+                        formData.append("offset", offset.toString());
+                        formData.append("size", totalSize.toString());
+                        
+                        // Include model_info only in the final chunk
+                        if (offset + CHUNK_SIZE >= totalSize) {
+                            formData.append("model_info", JSON.stringify(info));
+                        }
+                        
+                        try {
+                            const response = await fetch(`http://${host}:${port}/api/deviceMgr/uploadModel`, {
+                                method: "POST",
+                                body: formData,
+                            });
+                            const result = await response.text();
+                            console.log(`Chunk uploaded: ${offset} / ${totalSize} (${((offset / totalSize) * 100).toFixed(1)}%)`);
+                            
+                            offset += CHUNK_SIZE;
+                            if (offset < totalSize) {
+                                // Upload next chunk
+                                await uploadChunk();
+                            } else {
+                                console.log("Upload completed:", result);
+                                node.modelFile = null;
+                            }
+                        } catch (error) {
+                            console.log("Upload error:", error);
+                        }
+                    };
+                    
+                    uploadChunk();
+                } else {
+                    // Legacy single upload for small files or info-only updates
+                    const formData = new FormData();
+                    if (node.modelFile) {
+                        formData.append("model_file", node.modelFile);
+                        node.modelFile = null;
+                    }
+                    formData.append("model_info", JSON.stringify(info));
+                    fetch(`http://${host}:${port}/api/deviceMgr/uploadModel`, {
+                        method: "POST",
+                        body: formData,
+                    })
+                        .then((response) => response.text())
+                        .then((result) => console.log(result))
+                        .catch((error) => console.log("error", error));
+                }
             }
         },
     });
