@@ -1,6 +1,6 @@
 {
     "name": "node-red-contrib-seeed-recamera",
-    "version": "0.0.8",
+    "version": "0.0.9",
     "description": "Node-RED nodes for reCamera",
     "keywords": [
         "node-red",
@@ -22,7 +22,8 @@
             "get-motor-angle": "nodes/get_motor_angle.js",
             "get-motor-speed": "nodes/get_motor_speed.js",
             "angle-to-can": "nodes/angle_to_can.js",
-            "can-to-angle": "nodes/can_to_angle.js"
+            "can-to-angle": "nodes/can_to_angle.js",
+            "get-battery-voltage": "nodes/get_battery_voltage.js"
         }
     },
     "dependencies": {

@@ -1,0 +1,64 @@
+<script type="text/javascript">
+    RED.nodes.registerType('get-battery-voltage',{
+        category: 'reCamera',
+        color: '#a6bbcf',
+        defaults: {
+            name: {value:""},
+            interval: {value:"1", required:true, validate:RED.validators.number()},
+            unit: {value:"V"}
+        },
+        inputs:0,
+        outputs:1,
+        icon: "font-awesome/fa-battery-half",
+        paletteLabel: "Battery Voltage",
+        label: function() {
+            return this.name||"Battery Voltage";
+        }
+    });
+</script>
+
+<script type="text/html" data-template-name="get-battery-voltage">
+    <div class="form-row">
+        <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Name">
+    </div>
+
+    <div class="form-row">
+        <label for="node-input-interval"><i class="fa fa-clock-o"></i> Interval (s)</label>
+        <input type="text" id="node-input-interval" placeholder="1">
+    </div>
+
+    <div class="form-row">
+        <label for="node-input-unit"><i class="fa fa-i-cursor"></i> Unit</label>
+        <input type="text" id="node-input-unit" placeholder="V">
+    </div>
+
+    <div class="form-tips">
+        <b>Tip:</b> <br>
+        This node periodically fetches battery voltage from the Supervisor API.<br>
+        Set <b>Interval</b> in seconds (default 1s).
+    </div>
+</script>
+
+<script type="text/html" data-help-name="get-battery-voltage">
+    <p>Periodically reads the system battery voltage via Supervisor API.</p>
+
+    <h3>Configuration</h3>
+    <dl class="message-properties">
+        <dt>Interval
+            <span class="property-type">number</span>
+        </dt>
+        <dd>How often to fetch the voltage in seconds.</dd>
+    </dl>
+
+    <h3>Outputs</h3>
+    <dl class="message-properties">
+        <dt>payload
+            <span class="property-type">number</span>
+        </dt>
+        <dd>The battery voltage in Volts.</dd>
+    </dl>
+
+    <h3>Details</h3>
+    <p>This node calls the internal API <code>/api/deviceMgr/queryBatteryInfo</code> to retrieve battery status.</p>
+</script>
