@@ -50,6 +50,21 @@
         </label>
         <input type="password" id="node-input-password" maxlength="32" />
     </div>
+    <div class="form-row">
+        <label for="node-input-onvif">
+            <i class="fa fa-sitemap"></i>
+            ONVIF
+        </label>
+        <input type="checkbox" id="node-input-onvif" style="width: auto; margin-top: 0;" />
+        <span style="margin-left: 8px;">Expose this stream via ONVIF (for NVR/VMS integration)</span>
+    </div>
+    <div class="form-row" id="node-input-onvif-port-row">
+        <label for="node-input-onvif-port">
+            <i class="fa fa-plug"></i>
+            ONVIF Port
+        </label>
+        <input type="number" id="node-input-onvif-port" min="1" max="65535" />
+    </div>
 </script>
 
 <script type="text/javascript">
@@ -63,6 +78,8 @@
             session: { value: "live", required: true },
             username: { value: "admin", required: false },
             password: { value: "admin", required: false },
+            onvif: { value: false },
+            onvif_port: { value: 8899, required: false },
             client: { type: "sscma", required: true, label: RED._("sscma") },
         },
         inputs: 1,
@@ -70,6 +87,15 @@
         icon: "font-awesome/fa-video-camera",
         label: function () {
             return this.name || "stream";
+        },
+        oneditprepare: function () {
+            var onvifCheckbox = $("#node-input-onvif");
+            var onvifPortRow = $("#node-input-onvif-port-row");
+            onvifCheckbox.prop("checked", this.onvif === true);
+            onvifCheckbox.on("change", function () {
+                onvifPortRow.toggle(onvifCheckbox.prop("checked"));
+            });
+            onvifPortRow.toggle(onvifCheckbox.prop("checked"));
         },
     });
 </script>
@@ -86,8 +112,10 @@ Wire the camera node to the stream node to enable the streaming.
 
 Please also select sscma for the client.
 
-#### Audio
-Checkbox to enable audio with streaming.
+#### ONVIF
+Checkbox to expose this stream via ONVIF so that NVR/VMS platforms (e.g. Hikvision, Dahua) can discover the camera and pull the stream. When enabled, a SOAP service is started on the configured ONVIF port (default 8899) and the device answers WS-Discovery probes.
+
+To add the camera on an NVR: choose the ONVIF protocol, enter the device IP with this ONVIF port, and use the stream username/password above.
 
 ### Output
 

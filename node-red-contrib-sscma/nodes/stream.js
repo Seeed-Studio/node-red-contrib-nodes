@@ -9,6 +9,8 @@ module.exports = function (RED) {
             session: config.session,
             username: config.username,
             password: config.password,
+            onvif: config.onvif ? true : false,
+            onvif_port: config.onvif ? (config.onvif_port ? +config.onvif_port : 8899) : 0,
         };
         node.message = function (msg) {};
 
