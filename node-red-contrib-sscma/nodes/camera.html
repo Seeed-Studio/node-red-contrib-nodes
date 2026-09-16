@@ -38,6 +38,7 @@
             <option value="2">640x480 (480p)</option>
             <option value="1">1280x720 (720p)</option>
             <option value="0" selected>1920x1080 (1080p)</option>
+            <option value="3">Max (sensor native)</option>
         </select>
     </div>
 
@@ -111,7 +112,7 @@
 
             // Ensure selects show sensible defaults if value is missing/invalid
             var optionVal = String(this.option);
-            var validoption = ["0", "1", "2"]; // 1080p/720p/480p
+            var validoption = ["0", "1", "2", "3"]; // 1080p/720p/480p/max
             if (!validoption.includes(optionVal)) {
                 optionVal = "0"; // default 1080p
             }
@@ -189,8 +190,8 @@ This is the `camera node` for Seeed SenseCraft Model Assistant hardwares such as
 
 -   **Audio**: Enable or disable audio capture.
 -   **Volume**: Adjust microphone volume (0–100).
--   **Resolution**: 1080p/720p/480p。
--   **FPS**: 帧率，可选 5/10/15/30，与 `model` 预览 FPS 范围一致。
+-   **Resolution**: 1080p/720p/480p/Max (sensor native, e.g. 2592x1944@15 for OV5647; switching to/from Max restarts the device service to take effect).
+-   **FPS**: 帧率，可选 5/10/15/30，与 `model` 预览 FPS 范围一致。Max 分辨率下会被钳位到传感器上限（如 OV5647 的 15）。
 -   **Mirror**: Horizontally flip the image (useful for selfie-style view).
 -   **Flip**: Vertically flip the image.
 

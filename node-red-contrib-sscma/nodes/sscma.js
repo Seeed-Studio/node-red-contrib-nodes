@@ -48,6 +48,8 @@ module.exports = function (RED) {
         RED.nodes.createNode(this, config);
         const node = this;
         node.users = {};
+        node.lastCreate = {}; // cached create payloads, replayed on MQTT reconnect
+        node.everConnected = false;
         // Config node state
         node.host = config.host;
         node.mqttport = config.mqttport;
@@ -122,6 +124,7 @@ module.exports = function (RED) {
             };
             Node.code = -1;
             Node.status({ fill: "yellow", shape: "ring", text: "node-red:common.status.connecting" });
+            node.lastCreate[Node.id] = create;
             node.request(Node.id, "create", create);
         };
 
@@ -131,6 +134,11 @@ module.exports = function (RED) {
             };
             node.request(Node.id, "destroy", destroy, done);
             delete node.users[Node.id];
+            delete node.lastCreate[Node.id];
+            if (node.createRetry[Node.id]) {
+                clearTimeout(node.createRetry[Node.id]);
+                delete node.createRetry[Node.id];
+            }
             if (autoDisconnect && !node.closing && node.connected && Object.keys(node.users).length === 0) {
                 node.disconnect(done);
             } else {
@@ -182,7 +190,14 @@ module.exports = function (RED) {
                                 console.log(err);
                             }
                         });
-                        // TODO: send connection acknowledgement to server
+                        // On reconnect (e.g. after an MQTT broker restart) the firmware
+                        // node registry may be empty — replay the cached create for
+                        // every registered user. The initial connect is skipped because
+                        // the register-time create is still queued on the mqtt client.
+                        if (node.everConnected) {
+                            node.scheduleCreateReplay(500);
+                        }
+                        node.everConnected = true;
                     });
                     node.client.on("message", function (topic, message) {
                         const id = topic.split("/").slice(-1)[0];
@@ -190,6 +205,19 @@ module.exports = function (RED) {
                             try {
                                 const payload = JSON.parse(message);
 
+                                if (payload.name === "create") {
+                                    // a create response arrived for this node: stop its retry timer
+                                    if (node.createRetry[id]) {
+                                        clearTimeout(node.createRetry[id]);
+                                        delete node.createRetry[id];
+                                    }
+                                    if (payload.code != 0 && String(payload.data).indexOf("restarting") !== -1) {
+                                        // the firmware service is restarting (e.g. a resolution
+                                        // mode switch); the broker stays up so no reconnect event
+                                        // will fire — schedule a replay once it should be back
+                                        node.scheduleCreateReplay(20000);
+                                    }
+                                }
                                 if (payload.name === "enabled") {
                                     if (payload.data === true) {
                                         node.users[id].status({ fill: "blue", shape: "dot", text: "running" });
@@ -310,6 +338,34 @@ module.exports = function (RED) {
                     }
                 }
             });
+        };
+
+        // Re-send a node's cached create until a create response arrives; used to
+        // recover the firmware node registry after an sscma-node service restart
+        // (the MQTT broker stays up, so there is no reconnect event to hook).
+        node.createRetry = {};
+        node.scheduleNodeCreateRetry = function (id, delay) {
+            if (!node.users[id] || !node.lastCreate[id] || node.createRetry[id]) {
+                return;
+            }
+            node.createRetry[id] = setTimeout(function () {
+                delete node.createRetry[id];
+                const u = node.users[id];
+                if (!u || !node.lastCreate[id]) {
+                    return;
+                }
+                u.code = -1;
+                u.status({ fill: "yellow", shape: "ring", text: "reconnecting" });
+                node.request(id, "create", node.lastCreate[id]);
+                node.scheduleNodeCreateRetry(id, 15000); // re-arm until the create response clears us
+            }, delay);
+        };
+        node.scheduleCreateReplay = function (delay) {
+            for (const id in node.lastCreate) {
+                if (node.lastCreate.hasOwnProperty(id)) {
+                    node.scheduleNodeCreateRetry(id, delay);
+                }
+            }
         };
 
         node.on("close", function (done) {
