@@ -271,6 +271,11 @@
         </select>
     </div>
     <div class="form-row">
+        <label for="node-input-websocket" style="width: 160px;"><i class="fa fa-video-camera"></i> Preview WebSocket</label>
+        <input type="checkbox" id="node-input-websocket" style="width:auto; margin-top: 0;">
+        <span style="color: var(--red-ui-secondary-text-color, #555); font-size: 11px;">serve preview frames on port 8090 (dashboard live view)</span>
+    </div>
+    <div class="form-row">
         <label for="node-input-debug" style="width: 160px;"><i class="fa fa-picture-o"></i> Base64 image output</label>
         <input type="checkbox" id="node-input-debug" style="width:auto; margin-top: 0;">
         <div id="base64-warning">
@@ -348,6 +353,7 @@
             splitter: { value: "0,0,0,0" }, // Array for x1, y1, x2, y2
             previewResolution: { value: "640x640" },
             previewFps: { value: 30 },
+            websocket: { value: true },
             client: { type: "sscma", required: true, label: RED._("sscma") },
         },
         inputs: 1,

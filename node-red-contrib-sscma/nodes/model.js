@@ -5,6 +5,10 @@ module.exports = function (RED) {
         node.client = RED.nodes.getNode(config.client);
         node.config = {
             uri: config.uri,
+            // sscma-node defaults model websocket_ to false (ION safety at 5MP);
+            // without this field the preview ws on port 8090 never starts and
+            // the dashboard shows "WebSocket: Disconnected"
+            websocket: config.websocket ? true : false,
             tiou: parseFloat(config.tiou),
             tscore: parseFloat(config.tscore),
             trace: config.trace,
