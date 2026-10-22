@@ -51,6 +51,14 @@
         <input type="password" id="node-input-password" maxlength="32" />
     </div>
     <div class="form-row">
+        <label for="node-input-audio">
+            <i class="fa fa-volume-up"></i>
+            Audio
+        </label>
+        <input type="checkbox" id="node-input-audio" style="width: auto; margin-top: 0;" />
+        <span style="margin-left: 8px;">Stream PCM audio (leave off for NVR/VMS compatibility)</span>
+    </div>
+    <div class="form-row">
         <label for="node-input-onvif">
             <i class="fa fa-sitemap"></i>
             ONVIF
@@ -80,6 +88,7 @@
             password: { value: "admin", required: false },
             onvif: { value: false },
             onvif_port: { value: 8899, required: false },
+            audio: { value: false },
             client: { type: "sscma", required: true, label: RED._("sscma") },
         },
         inputs: 1,
@@ -116,6 +125,9 @@ Please also select sscma for the client.
 Checkbox to expose this stream via ONVIF so that NVR/VMS platforms (e.g. Hikvision, Dahua) can discover the camera and pull the stream. When enabled, a SOAP service is started on the configured ONVIF port (default 8899) and the device answers WS-Discovery probes.
 
 To add the camera on an NVR: choose the ONVIF protocol, enter the device IP with this ONVIF port, and use the stream username/password above.
+
+#### Audio
+Checkbox to include a PCM (L16/16kHz) audio track in the RTSP stream. Most NVR/VMS clients cannot play this format and some (e.g. Hikvision) refuse the whole stream when it is present, so keep it off for NVR integration and enable it only for clients known to support L16.
 
 ### Output
 

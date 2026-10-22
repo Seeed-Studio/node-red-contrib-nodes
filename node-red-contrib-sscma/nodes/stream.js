@@ -11,6 +11,7 @@ module.exports = function (RED) {
             password: config.password,
             onvif: config.onvif ? true : false,
             onvif_port: config.onvif ? (config.onvif_port ? +config.onvif_port : 8899) : 0,
+            audio: config.audio ? true : false,
         };
         node.message = function (msg) {};
 
